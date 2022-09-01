@@ -41,6 +41,8 @@ Bonus: A dry-run/simulation run is not required. If you like to live dangerously
 
 ## Requirements
 
+This script does not need root, however it does need the same rights as your ZIM directory or it won't be able to download and/or purge ZIMs.
+
 This script checks for the below packages. If not found, it will attempt to install them via APT.
 
 - wget
