@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="1.0"
+VER="1.1"
 
 # Set required packages Array
 PackagesArray=('wget')
@@ -24,6 +24,7 @@ ZIMCount=0
 # self_update - Script Update Function
 self_update() {
     echo "2. Script Updates:"
+    echo
     cd "$SCRIPTPATH"
     timeout 1s git fetch --quiet
     timeout 1s git diff --quiet --exit-code "origin/$BRANCH" "$SCRIPTFILE"
@@ -232,9 +233,11 @@ echo
 flags $1 $2 $3
 
 # Package Check
-packages #Uncomment for Production
-#echo
-self_update #Uncomment for Production
+packages
+echo
+
+# Self Update Check
+self_update
 echo
 
 echo "4. Processing ZIM(s)..."
