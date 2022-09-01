@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="1.3"
+VER="1.4"
 
 # Set required packages Array
 PackagesArray=('wget')
