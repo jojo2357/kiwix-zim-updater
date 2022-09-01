@@ -209,7 +209,7 @@ zim_purge() {
         for ((z=0; z<${#CleanPurgeArray[@]}; z++)); do
             echo "      ✓ Purge: ${CleanPurgeArray[$z]}"
             echo
-            [[ $DEBUG -eq 0 ]] && rm -i ${CleanPurgeArray[$z]}
+            [[ $DEBUG -eq 0 ]] && rm ${CleanPurgeArray[$z]}
         done
     fi
     unset CleanPurgeArray

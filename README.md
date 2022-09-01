@@ -4,9 +4,15 @@ A script to check `download.kiwix.org` for updates to your local ZIM library.
 
 Just pass this script your ZIM directory and away it goes. *(see Usage below)*
 
+Scripted, tested and used on my Ubuntu server, so it should work for just about all Debian-based systems. It probably works on all Linux systems... I just have no time to test that.
+
 ## What It Does
 
-I wanted an easy way to ensure my ZIM library was kept updated without actually needing to check every ZIM individually. I looked for a tool/script to do this, but didn't turn up anything... so I make one.
+I wanted an easy way to ensure my ZIM library was kept updated without actually needing to check every ZIM individually. I looked for a tool to do this, but didn't find anything... so I put on my amature BASH hat and made one.
+
+I run this script via a scheduled cron job on my Linux server where I store my ZIM library and host the Kiwix server. After it's complete, I follow it up with an automated call to update my `library.xml` for the Kiwix server (Note: this part is not provided via this script). This keeps my ZIM library and Kiwix server updated.
+
+It works for me. Your miles may vary...
 
 This script will parse a list of all ZIM(s) found in the ZIM directory passed to it. It then checks each ZIM against what is on the `download.kiwix.org` website via the file name Year-Month part.
 
@@ -34,7 +40,7 @@ Bonus: A dry-run/simulation run is not required. If you like to live dangerously
 
 ## Limitations
 
-- If you maintain multiple dated versions of the same ZIM (i.e. `xxx_2022-06.zim` and `xxx_2022-07.zim`) this script may not be for you... at least not yet.
+- If you maintain multiple dated versions of the same ZIM (i.e. `xxx_2022-06.zim` and `xxx_2022-07.zim`) this script may not be for you... at least not yet. Give it a dry-run and check the results.
 - This script is only for ZIM(s) hosted by `download.kiwix.org` due to the file naming standard they use. If you have self-made ZIM(s) or ZIM(s) downloaded from somewhere else, they most likely do not use the same naming standards and will not be processed by this script.
 - If you have ZIM(s) from `download.kiwix.org`, but you have changed their file names, this script will treat them like the previous limitation explains.
 - This script does not attempt to update any `library.xml` that may or may not exist/be needed for your install/setup of Kiwix. If needed, you'll need to handle this part on your own.
