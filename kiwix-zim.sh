@@ -234,7 +234,7 @@ flags $1 $2 $3
 # Package Check
 packages #Uncomment for Production
 #echo
-#self_update #Uncomment for Production
+self_update #Uncomment for Production
 echo
 
 echo "4. Processing ZIM(s)..."
