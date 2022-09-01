@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="1.5"
+VER="1.6"
 
 # Set required packages Array
 PackagesArray=('wget')
@@ -67,7 +67,8 @@ packages() {
     install_pkgs=" "
     for keys in "${!PackagesArray[@]}"; do
         REQUIRED_PKG=${PackagesArray[$keys]}
-        PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
+        #PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
+        PKG_OK=$(command -v $REQUIRED_PKG)
         if [ "" = "$PKG_OK" ]; then
             echo "   ✗ $REQUIRED_PKG: Not Found"
             install_pkgs+=" $REQUIRED_PKG"
