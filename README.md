@@ -12,8 +12,11 @@ This script will parse a list of all ZIM(s) found in the ZIM directory passed to
 
 Any new versions found get queued for direct download (processed via `wget`). Replaced ZIM(s) are then queued for purging (processed via `rm`). *(see Limitations below)*
 
-```
-Note: Due to the nature of ZIM sizes and internet connection speeds, you should expect the download process to take a while. This script will output the download progress bar during the download process just so you can see that the script hasn't frozen or locked up.
+```text
+Note: Due to the nature of ZIM sizes and internet connection speeds, 
+      you should expect the download process to take a while. 
+      This script will output the download progress bar during the download
+      process just so you can see that the script hasn't frozen or locked up.
 ```
 
 ### Special Note
@@ -22,8 +25,11 @@ For data safety reasons, I have coded this script to "dry-run" by default. This 
 
 Once you are good with the "dry-run" results and wish to commit to them, simply re-run the script like you did the first time, but this time, add the "dry-run" override flag (`-d`) to the end.
 
-```
-Bonus: A dry-run/simulation run is not required. If you like to live dangerously, feel free to just call the script with the override flag right from the start. It's your ZIM libary... not mine.
+```text
+Bonus: A dry-run/simulation run is not required. If you like to live dangerously,
+       feel free to just call the script with the override flag right from the start. 
+
+       It's your ZIM libary... not mine.
 ```
 
 ## Limitations
@@ -48,13 +54,13 @@ Not checked or installed via script:
 This script is self-updating. The self-update routine uses git commands to make the update so it should be "installed" with the following command.
 *(A future update will allow the user to skip this self-update function... allowing the script to be "installed" and/or run from outside of a git clone.)*
 
-```
+```text
 git clone https://github.com/DocDrydenn/svr_fans.git
 ```
 
 ## Usage
 
-```
+```text
     Usage: ./kiwix-zim.sh <h|d> /full/path/
 
     /full/path/       Full path to ZIM directory
