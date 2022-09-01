@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="1.1"
+VER="1.2"
 
 # Set required packages Array
 PackagesArray=('wget')
@@ -23,21 +23,21 @@ ZIMCount=0
 
 # self_update - Script Update Function
 self_update() {
-    echo "3. Script Updates:"
+    echo "3. Checking for Script Updates..."
     echo
     cd "$SCRIPTPATH"
     timeout 1s git fetch --quiet
     timeout 1s git diff --quiet --exit-code "origin/$BRANCH" "$SCRIPTFILE"
     [ $? -eq 1 ] && {
-        echo "  ✗ Version: Mismatched."
-        echo "3a. Fetching Update:"
+        echo "   ✗ Version: Mismatched."
+        echo "3a. Fetching Update..."
         if [ -n "$(git status --porcelain)" ];  then
             git stash push -m 'local changes stashed before self update' --quiet
         fi
         git pull --force --quiet
         git checkout $BRANCH --quiet
         git pull --force --quiet
-        echo "  ✓ Update Complete. Running New Version. Standby..."
+        echo "   ✓ Update Complete. Running New Version. Standby..."
         sleep 3
         cd - > /dev/null
 
@@ -47,22 +47,22 @@ self_update() {
         # Exit this old instance of the script
         exit 1
     }
-    echo "  ✓ Version: Current."
+    echo "   ✓ Version: Current."
 }
 
 # packages - Package Check/Install Function
 packages() {
-    echo "2. Required Packages:"
+    echo "2. Checking Required Packages..."
     echo
     install_pkgs=" "
     for keys in "${!PackagesArray[@]}"; do
         REQUIRED_PKG=${PackagesArray[$keys]}
         PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
         if [ "" = "$PKG_OK" ]; then
-            echo "  ✗ $REQUIRED_PKG: Not Found."
+            echo "   ✗ $REQUIRED_PKG: Not Found"
             install_pkgs+=" $REQUIRED_PKG"
         else
-            echo "  ✓ $REQUIRED_PKG: Found."
+            echo "   ✓ $REQUIRED_PKG: Found"
         fi
     done
     if [ " " != "$install_pkgs" ]; then
