@@ -55,7 +55,7 @@ This script is self-updating. The self-update routine uses git commands to make 
 *(A future update will allow the user to skip this self-update function... allowing the script to be "installed" and/or run from outside of a git clone.)*
 
 ```text
-git clone https://github.com/DocDrydenn/svr_fans.git
+git clone https://github.com/DocDrydenn/kiwix-zim.git
 ```
 
 ## Usage
