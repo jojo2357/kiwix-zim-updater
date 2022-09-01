@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="1.2"
+VER="1.3"
 
 # Set required packages Array
 PackagesArray=('wget')
@@ -30,7 +30,9 @@ self_update() {
     timeout 1s git diff --quiet --exit-code "origin/$BRANCH" "$SCRIPTFILE"
     [ $? -eq 1 ] && {
         echo "   ✗ Version: Mismatched."
+        echo
         echo "3a. Fetching Update..."
+        echo
         if [ -n "$(git status --porcelain)" ];  then
             git stash push -m 'local changes stashed before self update' --quiet
         fi
@@ -99,8 +101,13 @@ onlineZIMcheck() {
 
     # Parse for Valid Releases
     for x in "${RawURLArray[@]}"; do
-        [[ $x == [a-z]* ]] && URLArray+=($x)
+        [[ $x == [a-z]* ]] && DirtyURLArray+=($x)
     done
+
+    # Let's sort the array in reverse to ensure newest versions are first when we dig through.
+    # This does slow down the search, but ensures the newest version is picked every time.
+    URLArray=($(printf "%s\n" "${DirtyURLArray[@]}" | sort -r))
+    unset DirtyURLArray
 }
 
 # Flag Processing Function
@@ -111,11 +118,6 @@ flags() {
     ([ "$1" = "h" ] || [ "$1" = "-h" ]) && usage_example
     ([ "$2" = "h" ] || [ "$2" = "-h" ]) && usage_example
     ([ "$3" = "h" ] || [ "$3" = "-h" ]) && usage_example
-
-    # Check for Dry-Run Override argument
-    ([ "$1" = "d" ] || [ "$1" = "-d" ]) && DEBUG=1
-    ([ "$2" = "d" ] || [ "$2" = "-d" ]) && DEBUG=1
-    ([ "$3" = "d" ] || [ "$3" = "-d" ]) && DEBUG=1
 
     echo "  -Validating ZIM directory..."
     
@@ -181,17 +183,18 @@ zim_download() {
     echo "5. Downloading Updates..."
     echo
 
-
     # Let's clear out any possible duplicates
-    
+    CleanDownloadArray=($(printf "%s\n" "${DownloadArray[@]}" | sort -u))
 
-    if [ ${#DownloadArray[@]} -ne 0 ]; then
-        for ((z=0; z<${#DownloadArray[@]}; z++)); do
-            echo "      ✓ Download: ${DownloadArray[$z]}"
+    if [ ${#CleanDownloadArray[@]} -ne 0 ]; then
+        for ((z=0; z<${#CleanDownloadArray[@]}; z++)); do
+            echo "      ✓ Download: ${CleanDownloadArray[$z]}"
             echo
-            [[ $DEBUG -eq 0 ]] && wget -P $ZIMPath ${DownloadArray[$z]} -q --show-progress && echo
+            [[ $DEBUG -eq 0 ]] && wget -P $ZIMPath ${CleanDownloadArray[$z]} -q --show-progress && echo
         done
     fi
+    unset CleanDownloadArray
+    unset DownloadArray
 }
 
 # ZIM purge
@@ -199,20 +202,27 @@ zim_purge() {
     echo "6. Purging Replaced ZIM(s)..."
     echo
 
-
     # Let's clear out any possible duplicates
+    CleanPurgeArray=($(printf "%s\n" "${PurgeArray[@]}" | sort -u))
 
-
-    if [ ${#PurgeArray[@]} -ne 0 ]; then
-        for ((z=0; z<${#PurgeArray[@]}; z++)); do
-            echo "      ✓ Purge: ${PurgeArray[$z]}"
+    if [ ${#CleanPurgeArray[@]} -ne 0 ]; then
+        for ((z=0; z<${#CleanPurgeArray[@]}; z++)); do
+            echo "      ✓ Purge: ${CleanPurgeArray[$z]}"
             echo
-            [[ $DEBUG -eq 0 ]] && rm -i ${PurgeArray[$z]}
+            [[ $DEBUG -eq 0 ]] && rm -i ${CleanPurgeArray[$z]}
         done
     fi
+    unset CleanPurgeArray
+    unset PurgeArray
 }
 
 # Begin Script Execute
+
+# Check for Dry-Run Override argument
+([ "$1" = "d" ] || [ "$1" = "-d" ]) && DEBUG=0
+([ "$2" = "d" ] || [ "$2" = "-d" ]) && DEBUG=0
+([ "$3" = "d" ] || [ "$3" = "-d" ]) && DEBUG=0
+
 clear
 echo "=========================================="
 echo " kiwix-zim"
@@ -221,11 +231,14 @@ echo
 echo "   v$VER by DocDrydenn"
 echo "=========================================="
 echo
-[[ $DEBUG -eq 1 ]] && echo "            DRY-RUN/SIMULATION"
+echo "            DRY-RUN/SIMULATION"
 [[ $DEBUG -eq 1 ]] && echo "               - ENABLED -"
 [[ $DEBUG -eq 1 ]] && echo
 [[ $DEBUG -eq 1 ]] && echo "           Use '-d' to disable."
-[[ $DEBUG -eq 1 ]] && echo
+[[ $DEBUG -eq 0 ]] && echo "               - DISABLED -"
+[[ $DEBUG -eq 0 ]] && echo
+[[ $DEBUG -eq 0 ]] && echo "             !!! Caution !!!"
+echo
 echo "=========================================="
 echo
 
@@ -297,11 +310,12 @@ echo "=========================================="
 echo " Process Complete."
 echo "=========================================="
 echo
-[[ $DEBUG -eq 1 ]] && echo "            DRY-RUN/SIMULATION"
+echo "            DRY-RUN/SIMULATION"
 [[ $DEBUG -eq 1 ]] && echo "               - ENABLED -"
 [[ $DEBUG -eq 1 ]] && echo
 [[ $DEBUG -eq 1 ]] && echo "           Use '-d' to disable."
-[[ $DEBUG -eq 1 ]] && echo
+[[ $DEBUG -eq 0 ]] && echo "               - DISABLED -"
+echo
 echo "=========================================="
 echo
 
