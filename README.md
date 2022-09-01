@@ -55,16 +55,17 @@ This script checks for the below packages. If not found, it will attempt to inst
 
 Not checked or installed via script:
 
-- Git *(needed for the self-update process to work.)*
+- Git *(only needed for the self-update process to work.)*
 
 ## Install
 
-This script is self-updating. The self-update routine uses git commands to make the update so it should be "installed" with the following command.
-*(A future update will allow the user to skip this self-update function... allowing the script to be "installed" and/or run from outside of a git clone.)*
+This script is self-updating. The self-update routine uses git commands to make the update so this script should be "installed" with the below command.
 
 ```text
 git clone https://github.com/DocDrydenn/kiwix-zim.git
 ```
+
+UPDATE: If you decide not to install via a git clone, you can still use this script, however, it will just skip the update check and continue on.
 
 ## Usage
 
