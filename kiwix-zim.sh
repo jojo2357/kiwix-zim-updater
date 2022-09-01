@@ -28,7 +28,7 @@ self_update() {
     # Check if script path is a git clone.
     #   If true, then check for update.
     #   If false, skip update check.
-    if [[ -f "$SCRIPTPATH/.git" ]]; then
+    if [[ -d "$SCRIPTPATH/.git" ]]; then
         echo "   ✓ Git Clone Detected: Checking Script Version..."
         cd "$SCRIPTPATH"
         timeout 1s git fetch --quiet
