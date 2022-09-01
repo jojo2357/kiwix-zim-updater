@@ -69,3 +69,5 @@ git clone https://github.com/DocDrydenn/kiwix-zim.git
 
     -h or h           Show this usage and exit
 ```
+
+![kiwix-zim](https://user-images.githubusercontent.com/48564375/187809068-7b53eef1-61da-4b3a-bdde-b26b58baa4a0.png)
