@@ -23,14 +23,14 @@ ZIMCount=0
 
 # self_update - Script Update Function
 self_update() {
-    echo "2. Script Updates:"
+    echo "3. Script Updates:"
     echo
     cd "$SCRIPTPATH"
     timeout 1s git fetch --quiet
     timeout 1s git diff --quiet --exit-code "origin/$BRANCH" "$SCRIPTFILE"
     [ $? -eq 1 ] && {
         echo "  ✗ Version: Mismatched."
-        echo "2a. Fetching Update:"
+        echo "3a. Fetching Update:"
         if [ -n "$(git status --porcelain)" ];  then
             git stash push -m 'local changes stashed before self update' --quiet
         fi
@@ -52,7 +52,7 @@ self_update() {
 
 # packages - Package Check/Install Function
 packages() {
-    echo "3. Required Packages:"
+    echo "2. Required Packages:"
     echo
     install_pkgs=" "
     for keys in "${!PackagesArray[@]}"; do
@@ -67,7 +67,7 @@ packages() {
     done
     if [ " " != "$install_pkgs" ]; then
         echo
-        echo "1a. Installing Missing Packages:"
+        echo "2a. Installing Missing Packages:"
         echo
         [[ $DEBUG -eq 1 ]] && apt --dry-run -y install $install_pkgs
         [[ $DEBUG -eq 0 ]] && apt install -y $install_pkgs
