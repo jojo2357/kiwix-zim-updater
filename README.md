@@ -16,27 +16,40 @@ It works for me. Your miles may vary...
 
 This script will parse a list of all ZIM(s) found in the ZIM directory passed to it. It then checks each ZIM against what is on the `download.kiwix.org` website via the file name Year-Month part.
 
-Any new versions found get queued for direct download (processed via `wget`). Replaced ZIM(s) are then queued for purging (processed via `rm`). *(see Limitations below)*
+Any new versions found get queued for direct download (processed via `curl`). Replaced ZIM(s) are then queued for purging (processed via `rm`). *(see Limitations below)*
 
 ```text
 Note: Due to the nature of ZIM sizes and internet connection speeds, 
-      you should expect the download process to take a while. 
-      This script will output the download progress bar during the download
-      process just so you can see that the script hasn't frozen or locked up.
+      you should expect the download process to take a while.
+
+      This script will output the download progress bar during the 
+      download process just so you can see that the script hasn't 
+      frozen or locked up.
+
+      Download status is also logged in real-time for monitoring from
+      outside this script. (see Special Note 1 below)
 ```
 
-### Special Note
+### Special Note 1
 
 For data safety reasons, I have coded this script to "dry-run" by default. This means that this script will not downloaded or purge anything, however, it will "go through the motions" and output what it would have actually done, allowing you to review the "effects" before commiting to them.
 
 Once you are good with the "dry-run" results and wish to commit to them, simply re-run the script like you did the first time, but this time, add the "dry-run" override flag (`-d`) to the end.
 
 ```text
-Bonus: A dry-run/simulation run is not required. If you like to live dangerously,
-       feel free to just call the script with the override flag right from the start. 
+Bonus: A dry-run/simulation run is not required. If you like to 
+       live dangerously, feel free to just call the script with 
+       the override flag right from the start. 
 
        It's your ZIM libary... not mine.
 ```
+
+### Special Note 2
+
+Downloads (`download.log`) and Purges (`purge.log`) are now created for two main reasons:
+
+1. History of what was done. Just good to have.
+2. Because downloads can take a really long time, if you were to run this script in the background, you'd have no real way of monitoring the status of any downloads it may be running... since switching over to `curl`, the `download.log` can be monitored for real-time status of any downloads taking place. You could use a very simple `tail -f download.log` to watch those download stats in real-time from outside of the script.
 
 ## Limitations
 
@@ -51,7 +64,7 @@ This script does not need root, however it does need the same rights as your ZIM
 
 This script checks for the below packages. If not found, it will attempt to install them via APT.
 
-- wget
+- curl
 
 Not checked or installed via script:
 
