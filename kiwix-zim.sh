@@ -1,9 +1,9 @@
 #!/bin/bash
 
-VER="1.6"
+VER="1.8"
 
 # Set required packages Array
-PackagesArray=('wget')
+PackagesArray=('curl')
 
 # Set Script Arrays
 LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMLangArray=(); ZIMTypeArray=(); ZIMSubTypeArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); DownloadArray=();
@@ -199,7 +199,21 @@ zim_download() {
         for ((z=0; z<${#CleanDownloadArray[@]}; z++)); do
             echo "      ✓ Download: ${CleanDownloadArray[$z]}"
             echo
-            [[ $DEBUG -eq 0 ]] && wget -P $ZIMPath ${CleanDownloadArray[$z]} -q --show-progress && echo
+            FileName=$(echo ${CleanDownloadArray[$z]} | rev | cut -d "/" -f1 | rev)
+            FilePath=$ZIMPath$FileName
+            echo >> download.log
+            echo "=======================================================================" >> download.log
+            echo "File : $FileName" >> download.log
+            echo "URL : ${CleanDownloadArray[$z]}" >> download.log
+            echo >> download.log
+            [[ $DEBUG -eq 0 ]] && echo "Start : $(date -u)" >> download.log
+            [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >> download.log
+            echo >> download.log
+            [[ $DEBUG -eq 0 ]] && curl -L -o $FilePath ${CleanDownloadArray[$z]} |& tee -a download.log && echo
+            [[ $DEBUG -eq 1 ]] && echo "  Download : $FilePath" >> download.log
+            echo >> download.log
+            [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >> download.log
+            [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >> download.log
         done
     fi
     unset CleanDownloadArray
@@ -215,11 +229,20 @@ zim_purge() {
     CleanPurgeArray=($(printf "%s\n" "${PurgeArray[@]}" | sort -u))
 
     if [ ${#CleanPurgeArray[@]} -ne 0 ]; then
+        echo >> purge.log
+        echo "=======================================================================" >> purge.log
+        [[ $DEBUG -eq 0 ]] && echo "$(date -u)" >> purge.log    
+        [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
+        echo >> purge.log      
         for ((z=0; z<${#CleanPurgeArray[@]}; z++)); do
             echo "      ✓ Purge: ${CleanPurgeArray[$z]}"
             echo
+            echo "  File : ${CleanPurgeArray[$z]}" >> purge.log   
             [[ $DEBUG -eq 0 ]] && rm ${CleanPurgeArray[$z]}
         done
+        echo >> purge.log
+        [[ $DEBUG -eq 0 ]] && echo "$(date -u)" >> purge.log    
+        [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
     fi
     unset CleanPurgeArray
     unset PurgeArray
@@ -259,7 +282,7 @@ packages
 echo
 
 # Self Update Check
-self_update
+#self_update
 echo
 
 echo "4. Processing ZIM(s)..."

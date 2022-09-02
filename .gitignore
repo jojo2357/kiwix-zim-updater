@@ -1,0 +1,3 @@
+# Ignore possible download log
+download.log
+purge.log
