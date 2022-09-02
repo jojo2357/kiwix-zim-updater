@@ -27,7 +27,7 @@ Note: Due to the nature of ZIM sizes and internet connection speeds,
       frozen or locked up.
 
       Download status is also logged in real-time for monitoring from
-      outside this script. (see Special Note 1 below)
+      outside this script. (see Special Note 2 below)
 ```
 
 ### Special Note 1
