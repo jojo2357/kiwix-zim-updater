@@ -282,7 +282,7 @@ packages
 echo
 
 # Self Update Check
-#self_update
+self_update
 echo
 
 echo "4. Processing ZIM(s)..."
