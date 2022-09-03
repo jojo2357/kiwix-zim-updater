@@ -18,6 +18,8 @@ This script will parse a list of all ZIM(s) found in the ZIM directory passed to
 
 Any new versions found get queued for direct download (processed via `curl`). Replaced ZIM(s) are then queued for purging (processed via `rm`). *(see Limitations below)*
 
+**UPDATE: As of v1.10, this script will attempt to use a preferred mirror (if available) for all downloads. If a valid mirror cannot be found, this script will default to the direct download from `download.kiwix.org`.**
+
 ```text
 Note: Due to the nature of ZIM sizes and internet connection speeds, 
       you should expect the download process to take a while.

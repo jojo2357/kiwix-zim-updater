@@ -1,12 +1,12 @@
 #!/bin/bash
 
-VER="1.9"
+VER="1.10"
 
 # Set required packages Array
 PackagesArray=('curl')
 
 # Set Script Arrays
-LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMLangArray=(); ZIMTypeArray=(); ZIMSubTypeArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); PurgeCheckArray=(); DownloadArray=();
+LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMLangArray=(); ZIMTypeArray=(); ZIMSubTypeArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); DownloadArray=(); MirrorArray=();
 
 # Set Script Strings
 SCRIPT="$(readlink -f "$0")"
@@ -70,10 +70,10 @@ packages() {
         #PKG_OK=$(dpkg-query -W --showformat='${Status}\n' $REQUIRED_PKG|grep "install ok installed")
         PKG_OK=$(command -v $REQUIRED_PKG)
         if [ "" = "$PKG_OK" ]; then
-            echo "   ✗ $REQUIRED_PKG: Not Found"
+            echo "  ✗ $REQUIRED_PKG: Not Found"
             install_pkgs+=" $REQUIRED_PKG"
         else
-            echo "   ✓ $REQUIRED_PKG: Found"
+            echo "  ✓ $REQUIRED_PKG: Found"
         fi
     done
     if [ " " != "$install_pkgs" ]; then
@@ -82,6 +82,7 @@ packages() {
         echo
         [[ $DEBUG -eq 1 ]] && apt --dry-run -y install $install_pkgs
         [[ $DEBUG -eq 0 ]] && apt install -y $install_pkgs
+        echo
     fi
 }
 
@@ -187,29 +188,50 @@ flags() {
     echo
 }
 
-# ZIM download
+# mirror_search - Find ZIM URL mirror
+mirror_search() {
+    IsMirror=0
+    DownloadURL=""
+    Direct=${CleanDownloadArray[$z]}
+    # Fetch (silent) meta4 xml and extract url marked priority="1"
+    RawMirror=$(curl -s $Direct.meta4 | grep 'priority="1"' | egrep -o 'https?://[^ ")]+')
+    # Check that we actually got a URL (this could probably be done way better than this). If not mirror URL, default back to direct URL.
+    if [[ $RawMirror == *"http"* ]]; then
+        # Strip off last "</url>" bracket
+        CleanMirror=${RawMirror%</url>}
+        DownloadURL=$CleanMirror
+        IsMirror=1
+    else
+        DownloadURL=${CleanDownloadArray[$z]}
+    fi
+}
+
+# zim_downlaod - ZIM download
 zim_download() {
     echo "5. Downloading New ZIM(s)..."
     echo
-
     # Let's clear out any possible duplicates
     CleanDownloadArray=($(printf "%s\n" "${DownloadArray[@]}" | sort -u))
-
+    # Start the download process
     if [ ${#CleanDownloadArray[@]} -ne 0 ]; then
         for ((z=0; z<${#CleanDownloadArray[@]}; z++)); do
-            echo "    ✓ Download: ${CleanDownloadArray[$z]}"
+            # Mirror Search
+            mirror_search
+            [[ $IsMirror -eq 0 ]] && echo "  ✓ Download (direct) : $DownloadURL"
+            [[ $IsMirror -eq 1 ]] && echo "  ✓ Download (mirror) : $DownloadURL"
             echo
-            FileName=$(basename ${CleanDownloadArray[$z]})
+            FileName=$(basename $DownloadURL)
             FilePath=$ZIMPath$FileName
             echo >> download.log
             echo "=======================================================================" >> download.log
             echo "File : $FileName" >> download.log
-            echo "URL : ${CleanDownloadArray[$z]}" >> download.log
+            [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >> download.log
+            [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >> download.log
             echo >> download.log
             [[ $DEBUG -eq 0 ]] && echo "Start : $(date -u)" >> download.log
             [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >> download.log
             echo >> download.log
-            [[ $DEBUG -eq 0 ]] && curl -L -o $FilePath ${CleanDownloadArray[$z]} |& tee -a download.log && echo
+            [[ $DEBUG -eq 0 ]] && curl -L -o $FilePath $DownloadURL |& tee -a download.log && echo
             [[ $DEBUG -eq 1 ]] && echo "  Download : $FilePath" >> download.log
             echo >> download.log
             [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >> download.log
@@ -217,17 +239,16 @@ zim_download() {
         done
     fi
     unset CleanDownloadArray
-    #unset DownloadArray # We can't do this here. We need it to verify new ZIMs during the purge function.
+    #unset DownloadArray       # We can't do this here. We need it to verify new ZIMs during the purge function.
 }
 
 # ZIM purge
 zim_purge() {
     echo "6. Purging Old ZIM(s)..."
     echo
-
     # Let's clear out any possible duplicates
     CleanPurgeArray=($(printf "%s\n" "${PurgeArray[@]}" | sort -u))
-
+    # Start the purge process
     if [ ${#CleanPurgeArray[@]} -ne 0 ]; then
         echo >> purge.log
         echo "=======================================================================" >> purge.log
@@ -276,8 +297,6 @@ zim_purge() {
     fi
     unset PurgeArray
     unset CleanPurgeArray
-    unset PurgeCheckArray
-    unset CleanPurgeCheckArray
     unset DownloadArray # Ths has to be done here because we need this array to verify new ZIMs during the purge function.
 }
 
@@ -356,7 +375,6 @@ for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
                 DownloadArray+=( $(echo $BaseURL${ZIMRootArray[$i]}/${URLArray[$x]}) )
                 PurgeArray+=( $(echo $ZIMPath${ZIMNameArray[$i]}) )
                 PurgeLocation=$(echo $ZIMPath)$(basename ${URLArray[$x]})
-                PurgeCheckArray+=( $PurgeLocation )
                 break # This probably needs to be dealt with better... eventually.
             fi          
         fi
