@@ -1,12 +1,12 @@
 #!/bin/bash
 
-VER="1.8"
+VER="1.9"
 
 # Set required packages Array
 PackagesArray=('curl')
 
 # Set Script Arrays
-LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMLangArray=(); ZIMTypeArray=(); ZIMSubTypeArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); DownloadArray=();
+LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMLangArray=(); ZIMTypeArray=(); ZIMSubTypeArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); PurgeCheckArray=(); DownloadArray=();
 
 # Set Script Strings
 SCRIPT="$(readlink -f "$0")"
@@ -189,7 +189,7 @@ flags() {
 
 # ZIM download
 zim_download() {
-    echo "5. Downloading Updates..."
+    echo "5. Downloading New ZIM(s)..."
     echo
 
     # Let's clear out any possible duplicates
@@ -197,9 +197,9 @@ zim_download() {
 
     if [ ${#CleanDownloadArray[@]} -ne 0 ]; then
         for ((z=0; z<${#CleanDownloadArray[@]}; z++)); do
-            echo "      ✓ Download: ${CleanDownloadArray[$z]}"
+            echo "    ✓ Download: ${CleanDownloadArray[$z]}"
             echo
-            FileName=$(echo ${CleanDownloadArray[$z]} | rev | cut -d "/" -f1 | rev)
+            FileName=$(basename ${CleanDownloadArray[$z]})
             FilePath=$ZIMPath$FileName
             echo >> download.log
             echo "=======================================================================" >> download.log
@@ -217,12 +217,12 @@ zim_download() {
         done
     fi
     unset CleanDownloadArray
-    unset DownloadArray
+    #unset DownloadArray # We can't do this here. We need it to verify new ZIMs during the purge function.
 }
 
 # ZIM purge
 zim_purge() {
-    echo "6. Purging Replaced ZIM(s)..."
+    echo "6. Purging Old ZIM(s)..."
     echo
 
     # Let's clear out any possible duplicates
@@ -235,17 +235,50 @@ zim_purge() {
         [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
         echo >> purge.log      
         for ((z=0; z<${#CleanPurgeArray[@]}; z++)); do
-            echo "      ✓ Purge: ${CleanPurgeArray[$z]}"
+            # Let's verify the new ZIM exists before we purge the old one.
+            # Fist, we have to figure out what the old ZIM was. To do this we'll have to iterate through the old Arrays. Ugh. Total PITA.
+            for ((o=0; o<${#PurgeArray[@]}; o++)); do
+                if [[ ${PurgeArray[$o]} = ${CleanPurgeArray[$z]} ]]; then
+                    NewZIM=$ZIMPath$(basename ${DownloadArray[$o]})
+                    OldZIM=${PurgeArray[$o]}
+                    break 
+                fi
+            done
+            echo "  Old : $OldZIM"
+            echo "  Old : $OldZIM" >> purge.log
+            echo "  New : $NewZIM"
+            echo "  New : $NewZIM" >> purge.log
+            if [[ -f $NewZIM ]]; then
+                # New ZIM found, proceed with purge.
+                if [[ $DEBUG -eq 0 ]]; then
+                    echo "  ✓ Status : New ZIM verified. Old ZIM purged."
+                    echo "  ✓ Status : New ZIM verified. Old ZIM purged." >> purge.log
+                    [[ -f $OldZIM ]] && rm ${CleanPurgeArray[$z]}
+                else
+                    echo "  ✓ Status : SIMULATED"
+                    echo "  ✓ Status : SIMULATED" >> purge.log
+                fi
+            else
+                # New ZIM *NOT* found, something went wrong. Skip this purge.
+                if [[ $DEBUG -eq 0 ]]; then
+                    echo "  ✗ Status : New ZIM failed verification. Old ZIM purge skipped."
+                    echo "  ✗ Status : New ZIM failed verification. Old ZIM purge skipped." >> purge.log
+                else
+                    echo "  ✓ Status : SIMULATED"
+                    echo "  ✓ Status : SIMULATED" >> purge.log
+                fi
+            fi
             echo
-            echo "  File : ${CleanPurgeArray[$z]}" >> purge.log   
-            [[ $DEBUG -eq 0 ]] && rm ${CleanPurgeArray[$z]}
+            echo >> purge.log
         done
-        echo >> purge.log
         [[ $DEBUG -eq 0 ]] && echo "$(date -u)" >> purge.log    
         [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
     fi
-    unset CleanPurgeArray
     unset PurgeArray
+    unset CleanPurgeArray
+    unset PurgeCheckArray
+    unset CleanPurgeCheckArray
+    unset DownloadArray # Ths has to be done here because we need this array to verify new ZIMs during the purge function.
 }
 
 # Begin Script Execute
@@ -322,11 +355,13 @@ for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
                 echo "    ✓ Update found! --> $OnlineVersion"
                 DownloadArray+=( $(echo $BaseURL${ZIMRootArray[$i]}/${URLArray[$x]}) )
                 PurgeArray+=( $(echo $ZIMPath${ZIMNameArray[$i]}) )
-                break # This needs to be dealt with eventually.
+                PurgeLocation=$(echo $ZIMPath)$(basename ${URLArray[$x]})
+                PurgeCheckArray+=( $PurgeLocation )
+                break # This probably needs to be dealt with better... eventually.
             fi          
         fi
     done
-    if [ $UpdateFound -eq 0 ]; then
+    if [[ $UpdateFound -eq 0 ]]; then
         echo "    ✗ No new update"
     fi
     echo
