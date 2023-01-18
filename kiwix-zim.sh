@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="1.12"
+VER="1.13"
 
 # Set required packages Array
 PackagesArray=('curl')
@@ -161,7 +161,14 @@ flags() {
     for ((i=0; i<${#LocalZIMArray[@]}; i++)); do  # Loop through local ZIM(s).
         ZIMNameArray[$i]=$(basename "${LocalZIMArray[$i]}")  # Extract file name.
         IFS='_' read -ra fields <<< "${ZIMNameArray[$i]}"; unset IFS  # Break the filename into fields delimited by the underscore '_'
-        ZIMRootArray[$i]=${fields[0]}  # First element is the Root - base directory for the URL
+
+        # *** Special Case for all STACKEXCHANGE ZIM's becasue they're too good to follow the naming standards. ***
+        # First element is the Root - base directory for the URL
+        if [[ ${fields[0]} == *"stackexchange.com"* || ${fields[0]} == *"stackoverflow.com"* || ${fields[0]} == *"mathoverflow.net"* || ${fields[0]} == *"serverfault.com"* || ${fields[0]} == *"stackapps.com"* || ${fields[0]} == *"superuser.com"* || ${fields[0]} == *"askubuntu.com"* ]]; then
+            ZIMRootArray[$i]="stack_exchange"
+        else
+            ZIMRootArray[$i]=${fields[0]} # All other non-stack_exchange ZIMs.
+        fi
         ZIMVerArray[$i]=$(echo "${fields[-1]}" | cut -d "." -f1)  # Last element (minus the extension) is the Version - YYYY-MM
         echo "    ✓ ${ZIMNameArray[$i]}"
     done
