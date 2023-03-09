@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="1.15"
+VER="1.16"
 
 # Set required packages Array
 PackagesArray=('curl')
@@ -196,7 +196,7 @@ mirror_search() {
     fi
 }
 
-# zim_downlaod - ZIM download Function
+# zim_download - ZIM download Function
 zim_download() {
     echo "5. Downloading New ZIM(s)..."
     echo
@@ -213,8 +213,8 @@ zim_download() {
             [[ $IsMirror -eq 1 ]] && echo "  Download (mirror) : $DownloadURL"
 
             if [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
-                [[ $DEBUG -eq 0 ]] && echo "  ✓ Status : ZIM already exists on disk. Skipping downlaod."
-                [[ $DEBUG -eq 1 ]] && echo "  ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping downlaod."
+                [[ $DEBUG -eq 0 ]] && echo "  ✓ Status : ZIM already exists on disk. Skipping download."
+                [[ $DEBUG -eq 1 ]] && echo "  ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download."
             else # New ZIM not found, so we'll go ahead and download it.
                 [[ $DEBUG -eq 0 ]] && echo "  ✓ Status : ZIM doesn't exist on disk. Downloading..."
                 [[ $DEBUG -eq 1 ]] && echo "  ✓ Status : *** Simulated ***  ZIM doesn't exist on disk. Downloading..."
