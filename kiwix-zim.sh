@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="1.16"
+VER="1.17"
 
 # Set required packages Array
 PackagesArray=('curl')
@@ -155,7 +155,7 @@ flags() {
     fi
 
     # Populate ZIM arrays from found ZIM(s)
-    echo "  -Parsing ZIM(s)..."
+    echo "  -Parsing ZIM(s) [root folder]..."
 
     # Online ZIM(s) have a semi-strict filename standard we can use for matching to our local ZIM(s).
     for ((i=0; i<${#LocalZIMArray[@]}; i++)); do  # Loop through local ZIM(s).
@@ -168,11 +168,14 @@ flags() {
         # *** Special Case for all ZIM's stored in the OTHER folder. ***
         elif [[ ${fields[0]} == *"alittlequestionaday"* || ${fields[0]} == *"allthetropes"* || ${fields[0]} == *"alpinelinux"* || ${fields[0]} == *"appropedia"* || ${fields[0]} == *"archlinux"* || ${fields[0]} == *"artofproblemsolving"* || ${fields[0]} == *"bayardcuisine"* || ${fields[0]} == *"bitcoin"* || ${fields[0]} == *"bulbagarden"* || ${fields[0]} == *"chabadpedia"* || ${fields[0]} == *"crashcourse"* || ${fields[0]} == *"dandwiki"* || ${fields[0]} == *"diksha-std10ssc"* || ${fields[0]} == *"disledansmalangue"* || ${fields[0]} == *"ecured"* || ${fields[0]} == *"education-et-numerique"* || ${fields[0]} == *"edutechwiki"* || ${fields[0]} == *"ekopedia"* || ${fields[0]} == *"eleda"* || ${fields[0]} == *"energypedia"* || ${fields[0]} == *"eu4"* || ${fields[0]} == *"evageeks"* || ${fields[0]} == *"experiencesscientifiques"* || ${fields[0]} == *"explainxkcd"* || ${fields[0]} == *"finiki"* || ${fields[0]} == *"fountainpen"* || ${fields[0]} == *"gentoo"* || ${fields[0]} == *"granbluefantasy"* || ${fields[0]} == *"halachipedia"* || ${fields[0]} == *"hamichlol"* || ${fields[0]} == *"hitchwiki"* || ${fields[0]} == *"inciclopedia"* || ${fields[0]} == *"installgentoo"* || ${fields[0]} == *"jaimelire"* || ${fields[0]} == *"japprendsalire"* || ${fields[0]} == *"klexikon"* || ${fields[0]} == *"laboh"* || ${fields[0]} == *"les-fondamentaux"* || ${fields[0]} == *"lesbelleshistoires"* || ${fields[0]} == *"lesptitsphilosophes"* || ${fields[0]} == *"litterature-audiobooks-poetry"* || ${fields[0]} == *"los_miserables_audiobook"* || ${fields[0]} == *"mawsouaa"* || ${fields[0]} == *"mdwiki"* || ${fields[0]} == *"mesptitesquestions"* || ${fields[0]} == *"mesptitspourquoi"* || ${fields[0]} == *"metakgp"* || ${fields[0]} == *"mindfield"* || ${fields[0]} == *"neos-wiki"* || ${fields[0]} == *"openstreetmap-wiki"* || ${fields[0]} == *"physicell"* || ${fields[0]} == *"plume-app.co"* || ${fields[0]} == *"poesies"* || ${fields[0]} == *"pokepedia"* || ${fields[0]} == *"pokewiki"* || ${fields[0]} == *"rationalwiki"* || ${fields[0]} == *"scoopyendirectducorpshumain"* || ${fields[0]} == *"scratch-wiki"* || ${fields[0]} == *"skin-of-color-society"* || ${fields[0]} == *"storybox"* || ${fields[0]} == *"stupidedia"* || ${fields[0]} == *"t4-wiki"* || ${fields[0]} == *"termux"* || ${fields[0]} == *"thaki"* || ${fields[0]} == *"the_infosphere"* || ${fields[0]} == *"ubuntudoc"* || ${fields[0]} == *"ubuntuusers"* || ${fields[0]} == *"westeros"* || ${fields[0]} == *"whitewolfwiki"* || ${fields[0]} == *"wikem"* || ${fields[0]} == *"wikishia"* || ${fields[0]} == *"wikispecies"* || ${fields[0]} == *"wikisummaries"* || ${fields[0]} == *"wikiwel"* || ${fields[0]} == *"yeshiva"* || ${fields[0]} == *"youscribe"* || ${fields[0]} == *"zaya-english-duniya-marthi"* || ${fields[0]} == *"zdoom"* || ${fields[0]} == *"zimgit"* ]]; then
             ZIMRootArray[$i]="other"
+        # *** Special Case for all ZIM's stored in the ZIMIT folder. ***
+        elif [[ ${fields[0]} == *"100r-off-the-grid"* || ${fields[0]} == *"armypubs"* || ${fields[0]} == *"bitnum"* || ${fields[0]} == *"birds-of-ladakh"* || ${fields[0]} == *"bookdash"* || ${fields[0]} == *"bouquineux.com"* || ${fields[0]} == *"cheatography.com"* || ${fields[0]} == *"coopmaths"* || ${fields[0]} == *"courses.lumenlearning.com"* || ${fields[0]} == *"der-postillon.com"* || ${fields[0]} == *"developer.mozilla.org"* || ${fields[0]} == *"edu.gcfglobal.org"* || ${fields[0]} == *"fas-military-medicine"* || ${fields[0]} == *"fipeco"* || ${fields[0]} == *"ghana-bece-past-questions"* || ${fields[0]} == *"internet-encyclopedia-philosophy"* || ${fields[0]} == *"lesfondamentaux.reseau-canope"* || ${fields[0]} == *"liberius.net"* || ${fields[0]} == *"lowtechmagazine.com"* || ${fields[0]} == *"mankier"* || ${fields[0]} == *"musictheory.net"* || ${fields[0]} == *"ncert-audiobooks"* || ${fields[0]} == *"open_street_maps"* || ${fields[0]} == *"owsap"* || ${fields[0]} == *"rapsberry_pi_docs"* || ${fields[0]} == *"scratch"* || ${fields[0]} == *"stacks.math.columbia.edu"* || ${fields[0]} == *"www.ready.gov"* ]]; then
+            ZIMRootArray[$i]="zimit"
         else
             ZIMRootArray[$i]=${fields[0]} # All other non-stack_exchange ZIMs.
         fi
         ZIMVerArray[$i]=$(echo "${fields[-1]}" | cut -d "." -f1)  # Last element (minus the extension) is the Version - YYYY-MM
-        echo "    ✓ ${ZIMNameArray[$i]}"
+        echo "    ✓ ${ZIMNameArray[$i]}  [${ZIMRootArray[$i]}]"
     done
     echo
     echo "    ${#ZIMNameArray[*]} ZIM(s) found."
