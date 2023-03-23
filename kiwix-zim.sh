@@ -450,7 +450,7 @@ flags "$1" "$2" "$3"
 packages
 
 # Third, Self-Update Check.
-#self_update
+self_update
 echo
 
 echo -e "\033[1;33m4. Processing ZIM(s)...\033[0m"
