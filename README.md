@@ -94,4 +94,4 @@ UPDATE: If you decide not to install via a git clone, you can still use this scr
     -h or h           Show this usage and exit
 ```
 
-![kiwix-zim](https://github.com/DocDrydenn/kiwix-zim/blob/main/kiwix-zim.png)
+![screenshot](https://github.com/DocDrydenn/kiwix-zim/blob/main/screenshot.png)
