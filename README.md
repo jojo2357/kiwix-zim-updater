@@ -6,6 +6,8 @@ Just pass this script your ZIM directory and away it goes. *(see Usage below)*
 
 Scripted, tested and used on my Ubuntu server, so it should work for just about all Debian-based systems. It probably works on all Linux systems... I just have no time to test that.
 
+![screenshot](https://github.com/DocDrydenn/kiwix-zim/blob/main/screenshot.png)
+
 ## What It Does
 
 I wanted an easy way to ensure my ZIM library was kept updated without actually needing to check every ZIM individually. I looked for a tool to do this, but didn't find anything... so I put on my amature BASH hat and made one.
@@ -93,5 +95,3 @@ UPDATE: If you decide not to install via a git clone, you can still use this scr
 
     -h or h           Show this usage and exit
 ```
-
-![screenshot](https://github.com/DocDrydenn/kiwix-zim/blob/main/screenshot.png)
