@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="2.00"
+VER="2.1"
 
 # Set required packages Array
 PackagesArray=('curl')
@@ -113,9 +113,11 @@ packages() {
         PKG_OK=$(command -v "$REQUIRED_PKG")
         if [ "" = "$PKG_OK" ]; then
             echo -e "\033[0;31m  ✗ $REQUIRED_PKG: Not Found\033[0m"
+            echo
             install_pkgs+=" $REQUIRED_PKG"
         else
             echo -e "\033[1;32m  ✓ $REQUIRED_PKG: Found\033[0m"
+            echo
         fi
     done
     if [ " " != "$install_pkgs" ]; then
