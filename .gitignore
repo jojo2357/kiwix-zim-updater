@@ -1,5 +1,5 @@
 # Ignore possible download log
 download.log
 purge.log
-kiwix-zim.png
+screenshot.png
 /zims
