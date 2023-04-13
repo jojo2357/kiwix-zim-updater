@@ -419,18 +419,18 @@ function ProgressBar {
 while [[ $# -gt 0 ]]; do
   case $1 in
     # accepts -h* (h and then anything else) and -*h* which will accept a single dash, other args, and then an h, and then more args. this allows -shvd style of arg calling
-    -h*|-!-*h*|--help)
+    -h|--help)
       usage_example
       ;;
-    -d*|-!-*d*|--disable-dry-run)
+    -d|--disable-dry-run)
       DEBUG=0
       shift # discard argument
       ;;
-    -v*|-!-*v*|--version)
+    -v|--version)
       echo "$VER"
       exit 0
       ;;
-    -s*|-!-*s*|--skip-sha-check)
+    -s|--skip-sha-check)
       SKIP_CHECK=1
       shift # discard argument
       ;;
