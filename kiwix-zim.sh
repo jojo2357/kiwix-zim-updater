@@ -38,7 +38,7 @@ master_scrape() {
     for x in "${RawMasterRootArray[@]}"; do
         [[ $x == [a-z]* ]] && MasterRootArray+=("$x")
     done
-  
+
     a=0
     # For each Root Directory...
     for i in "${MasterRootArray[@]}"
@@ -46,7 +46,7 @@ master_scrape() {
         # Call ProgressBar Function
         ((++a))
         ProgressBar ${a} ${#MasterRootArray[@]}
-        
+
         # Parse Website Directory for ZIMs
         IFS=$'\n' read -r -d '' -a RawMasterZIMArray < <( wget -q "$BaseURL$i" -O - | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
 
@@ -54,9 +54,9 @@ master_scrape() {
         for z in "${RawMasterZIMArray[@]}"; do
             [[ $z == [a-z]* ]] && MasterZIMArray+=("${z%???????????}") && MasterZIMRootArray+=("$i")
         done
-        
-    done 
-    
+
+    done
+
     # Housekeeping...
     unset RawMasterRootArray
     unset DirtyMasterRootArray
@@ -66,7 +66,7 @@ master_scrape() {
 
 # self_update - Script Self-Update Function
 self_update() {
-    echo -e "\033[1;33m3. Checking for Script Updates...\033[0m"
+    echo -e "\033[1;33m1. Checking for Script Updates...\033[0m"
     echo
     # Check if script path is a git clone.
     #   If true, then check for update.
@@ -105,7 +105,7 @@ self_update() {
 
 # packages - Required Package(s) Check/Install Function
 packages() {
-    echo -e "\033[1;33m2. Checking Required Packages...\033[0m"
+    echo -e "\033[1;33m3. Checking Required Packages...\033[0m"
     echo
     install_pkgs=" "
     for keys in "${!PackagesArray[@]}"; do
@@ -132,20 +132,21 @@ packages() {
 
 # usage_example - Show Usage and Exit
 usage_example() {
-    echo 'Usage: ./kiwix-zim.sh <h|d> /full/path/'
+    echo 'Usage: ./kiwix-zim.sh <options> /full/path/'
     echo
-    echo '    /full/path/       Full path to ZIM directory'
+    echo '    /full/path/                Full path to ZIM directory'
     echo
-    echo '    -d or d           Dry-Run Override.'
-    echo '                      *** Caution ***'
+    echo 'Options:'
+    echo '    -d, --disable-dry-run      Dry-Run Override.'
+    echo '                               *** Caution ***'
     echo
-    echo '    -h or h           Show this usage and exit.'
+    echo '    -h, --help                 Show this usage and exit.'
     echo
     exit 0
 }
 
 # onlineZIMcheck - Fetch/Scrape download.kiwix.org for single ZIM
-onlineZIMcheck() {   
+onlineZIMcheck() {
     # Clear out Arrays, for good measure.
     unset URLArray
     unset RawURLArray
@@ -167,17 +168,10 @@ onlineZIMcheck() {
 
 # flags - Flag and ZIM Processing Functions
 flags() {
-    echo -e "\033[1;33m1. Preprocessing...\033[0m"
-    echo
-    echo -e "\033[1;34m  -Building online ZIM list...\033[0m"
-    
-    # Build online ZIM list.
-    master_scrape
-    
-    echo
+    echo -e "\033[1;33m2. Preprocessing...\033[0m"
     echo
     echo -e "\033[1;34m  -Validating ZIM directory...\033[0m"
-    
+
     # Let's identify which argument is the ZIM directory path and if it's an actual directory.
     if [[ -d ${1} ]]; then
         ZIMPath=$1
@@ -208,6 +202,14 @@ flags() {
         exit 0
     fi
 
+    echo -e "\033[1;34m  -Building online ZIM list...\033[0m"
+
+    # Build online ZIM list.
+    master_scrape
+
+    echo
+    echo
+
     # Populate ZIM arrays from found ZIM(s)
     echo -e "\033[1;34m  -Parsing ZIM(s)...\033[0m"
 
@@ -215,9 +217,9 @@ flags() {
     for ((i=0; i<${#LocalZIMArray[@]}; i++)); do  # Loop through local ZIM(s).
         ZIMNameArray[$i]=$(basename "${LocalZIMArray[$i]}")  # Extract file name.
         IFS='_' read -ra fields <<< "${ZIMNameArray[$i]}"; unset IFS  # Break the filename into fields delimited by the underscore '_'
-        
+
         # Search MasterZIMArray for the current local ZIM to discover the online Root (directory) for the URL
-        for ((z=0; z<${#MasterZIMArray[@]}; z++)); do         
+        for ((z=0; z<${#MasterZIMArray[@]}; z++)); do
             if [[ ${MasterZIMArray[$z]} == "${ZIMNameArray[$i]%???????????}" ]]; then # Match Found (ignore the filename datepart).
                 ZIMRootArray[$i]=${MasterZIMRootArray[$z]}
                 break
@@ -226,7 +228,7 @@ flags() {
             fi
         done
         ZIMVerArray[$i]=$(echo "${fields[-1]}" | cut -d "." -f1)  # Last element (minus the extension) is the Version - YYYY-MM
-        
+
         if [[ ${ZIMRootArray[$i]} == "NotFound" ]]; then
             echo -e "\033[0;31m    ✗ ${ZIMNameArray[$i]}  No online match found.\033[0m"
         else
@@ -260,10 +262,10 @@ mirror_search() {
 zim_download() {
     echo -e "\033[1;33m5. Downloading New ZIM(s)...\033[0m"
     echo
-    
+
     # Let's clear out any possible duplicates
     CleanDownloadArray=($(printf "%s\n" "${DownloadArray[@]}" | sort -u)) # Sort Array
-    
+
     # Let's Start the download process, but only if we have actual downloads to do.
     if [ ${#CleanDownloadArray[@]} -ne 0 ]; then
         for ((z=0; z<${#CleanDownloadArray[@]}; z++)); do # Iterate through the download queue.
@@ -293,7 +295,7 @@ zim_download() {
             [[ $DEBUG -eq 0 ]] && echo "Start : $(date -u)" >> download.log
             [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >> download.log
             echo >> download.log
-            
+
             # Before we actually download, let's just check to see that it isn't already in the folder.
             if [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
                 #[[ $DEBUG -eq 0 ]] && curl -L -o "$FilePath" "$DownloadURL" |& tee -a download.log && echo # Download new ZIM
@@ -321,14 +323,14 @@ zim_purge() {
 
     # Let's clear out any possible duplicates.
     CleanPurgeArray=($(printf "%s\n" "${PurgeArray[@]}" | sort -u)) # Sort Array
-    
+
     # Let's start the purge process, but only if there are items to purge.
     if [ ${#CleanPurgeArray[@]} -ne 0 ]; then
         echo >> purge.log
         echo "=======================================================================" >> purge.log
-        [[ $DEBUG -eq 0 ]] && date -u >> purge.log    
+        [[ $DEBUG -eq 0 ]] && date -u >> purge.log
         [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
-        echo >> purge.log      
+        echo >> purge.log
         for ((z=0; z<${#CleanPurgeArray[@]}; z++)); do
             # Before we actually purge, we want to check that the new ZIM downloaded and exists.
             #   Fist, we have to figure out what the old ZIM was. To do this we'll have to iterate through the old Arrays. Ugh. Total PITA.
@@ -365,7 +367,7 @@ zim_purge() {
             echo
             echo >> purge.log
         done
-        [[ $DEBUG -eq 0 ]] && date -u >> purge.log    
+        [[ $DEBUG -eq 0 ]] && date -u >> purge.log
         [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
     else
         echo -e "\033[0;32m    ✓ Purge: Nothing to purge.\033[0m"
@@ -373,7 +375,7 @@ zim_purge() {
     fi
     unset PurgeArray # Housekeeping
     unset CleanPurgeArray # Housekeeping
-    
+
     # Ah, now we can properly Housekeep these Arrays.
     unset DownloadArray
     unset MasterZIMArray
@@ -391,9 +393,9 @@ function ProgressBar {
     current="$1"
     total="$2"
 
-    # calculate the progress in percentage 
+    # calculate the progress in percentage
     percent=$(bc <<< "scale=$bar_percentage_scale; 100 * $current / $total" )
-    
+
     # The number of done and todo characters
     done=$(bc <<< "scale=0; $bar_size * $percent / 100" )
     todo=$(bc <<< "scale=0; $bar_size - $done" )
@@ -414,15 +416,33 @@ function ProgressBar {
 # Begin Script Execute
 #########################
 
-# Check for HELP argument first.
-{ [ "$1" = "h" ] || [ "$1" = "-h" ]; } && usage_example
-{ [ "$2" = "h" ] || [ "$2" = "-h" ]; } && usage_example
-{ [ "$3" = "h" ] || [ "$3" = "-h" ]; } && usage_example
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    # accepts -h* (h and then anything else) and -*h* which will accept a single dash, other args, and then an h, and then more args. this allows -shvd style of arg calling
+    -h*|-!-*h*|--help)
+      usage_example
+      ;;
+    -d*|-!-*d*|--disable-dry-run)
+      DEBUG=0
+      shift # discard argument
+      ;;
+    -v*|-!-*v*|--version)
+      echo "$VER"
+      exit 0
+      ;;
+    -s*|-!-*s*|--skip-sha-check)
+      SKIP_CHECK=1
+      shift # discard argument
+      ;;
+    *)
+      # We can either parse the arg here, or just tuck it away for safekeeping
+      POSITIONAL_ARGS+=("$1") # save positional arg
+      shift # past argument
+      ;;
+  esac
+done
 
-# Check for Dry-Run Override argument
-{ [ "$1" = "d" ] || [ "$1" = "-d" ]; } && DEBUG=0
-{ [ "$2" = "d" ] || [ "$2" = "-d" ]; } && DEBUG=0
-{ [ "$3" = "d" ] || [ "$3" = "-d" ]; } && DEBUG=0
+set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters that we skipped earlier
 
 clear # Clear screen
 
@@ -445,20 +465,22 @@ echo
 echo "=========================================="
 echo
 
+# Third, Self-Update Check.
+# Shouldnt this be first? it is not dependent on anything else and resets everything, so may as well reset it before getting all invested?
+self_update
+
 # First, Flag Check.
-flags "$1" "$2" "$3"
+flags "$@"
 
 # Second, Package Check.
 packages
 
-# Third, Self-Update Check.
-self_update
 echo
 
 echo -e "\033[1;33m4. Processing ZIM(s)...\033[0m"
 echo
 for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
-    onlineZIMcheck "$i"     
+    onlineZIMcheck "$i"
     echo -e "\033[1;34m  - ${ZIMNameArray[$i]}:\033[0m"
     UpdateFound=0
     unset Zmfields # Housekeeping
@@ -468,7 +490,7 @@ for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
         IFS='_' read -ra Onfields <<< ${URLArray[$x]}; unset IFS # Break URL name into fields
         match=1
         # Here we need to iterate through the fields in order to find a full match.
-        for ((t=0; t<$((${#Onfields[@]} - 1)); t++)); do 
+        for ((t=0; t<$((${#Onfields[@]} - 1)); t++)); do
             # Do they have the same field counts?
             if [ ${#Onfields[@]} = ${#Zmfields[@]} ]; then # Field counts match, keep going.
                 # Are the current fields equal?
@@ -483,13 +505,13 @@ for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
         done
         # Field counts were equal and all fields matched. We have a Winner!
         if [[ $match -eq 1 ]]; then
-            #  Now we need to check if it is newer than the local.     
+            #  Now we need to check if it is newer than the local.
             OnlineVersion=$(echo "${URLArray[$x]}" | sed 's/^.*_\([^_]*\)$/\1/' | cut -d "." -f1)
             OnlineYear=$(echo "$OnlineVersion" | cut -d "-" -f1)
             OnlineMonth=$(echo "$OnlineVersion" | cut -d "-" -f2)
             ZIMYear=$(echo "${ZIMVerArray[$i]}" | cut -d "-" -f1)
             ZIMMonth=$(echo "${ZIMVerArray[$i]}" | cut -d "-" -f2)
-            
+
             # Check if online Year is older than local Year.
             if [ "$OnlineYear" -lt "$ZIMYear" ]; then # Online Year is older, skip.
                 continue
@@ -502,7 +524,7 @@ for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
                 DownloadArray+=( "$BaseURL${ZIMRootArray[$i]}/${URLArray[$x]}" )
                 PurgeArray+=( "$ZIMPath${ZIMNameArray[$i]}" )
                 break # No need to conitnue checking the URLArray.
-            fi          
+            fi
         fi
     done
     if [[ $UpdateFound -eq 0 ]]; then # No update was found.
