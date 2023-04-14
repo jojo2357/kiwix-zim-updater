@@ -101,6 +101,7 @@ self_update() {
     else
         echo -e "\033[0;31m   ✗ Git Clone Not Detected: Skipping Update Check\033[0m"
     fi
+    echo
 }
 
 # packages - Required Package(s) Check/Install Function
@@ -117,7 +118,6 @@ packages() {
             install_pkgs+=" $REQUIRED_PKG"
         else
             echo -e "\033[1;32m  ✓ $REQUIRED_PKG: Found\033[0m"
-            echo
         fi
     done
     if [ " " != "$install_pkgs" ]; then
