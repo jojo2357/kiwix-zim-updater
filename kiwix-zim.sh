@@ -79,7 +79,7 @@ self_update() {
         [ $? -eq 1 ] && {
             echo -e "\033[0;31m   ✗ Version: Mismatched\033[0m"
             echo
-            echo -e "\033[1;33m3a. Fetching Update...\033[0m"
+            echo -e "\033[1;33m1a. Fetching Update...\033[0m"
             echo
             if [ -n "$(git status --porcelain)" ];  then
                 git stash push -m 'local changes stashed before self update' --quiet
@@ -122,7 +122,7 @@ packages() {
     done
     if [ " " != "$install_pkgs" ]; then
         echo
-        echo -e "\033[1;33m2a. Installing Missing Packages:\033[0m"
+        echo -e "\033[1;33m3a. Installing Missing Packages:\033[0m"
         echo
         [[ $DEBUG -eq 1 ]] && apt --dry-run -y install "$install_pkgs" # Simulation
         [[ $DEBUG -eq 0 ]] && apt install -y "$install_pkgs" # Real
