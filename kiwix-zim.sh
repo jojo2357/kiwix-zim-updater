@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="2.1"
+VER="2.2"
 
 # Set required packages Array
 PackagesArray=('curl')
