@@ -142,6 +142,8 @@ usage_example() {
     echo
     echo '    -h, --help                 Show this usage and exit.'
     echo
+    echo '    -p, --skip-purge           Skips purging any replaced ZIMs.'
+    echo
     exit 0
 }
 
@@ -320,58 +322,61 @@ zim_download() {
 zim_purge() {
     echo -e "\033[1;33m6. Purging Old ZIM(s)...\033[0m"
     echo
-
-    # Let's clear out any possible duplicates.
-    CleanPurgeArray=($(printf "%s\n" "${PurgeArray[@]}" | sort -u)) # Sort Array
-
-    # Let's start the purge process, but only if there are items to purge.
-    if [ ${#CleanPurgeArray[@]} -ne 0 ]; then
-        echo >> purge.log
-        echo "=======================================================================" >> purge.log
-        [[ $DEBUG -eq 0 ]] && date -u >> purge.log
-        [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
-        echo >> purge.log
-        for ((z=0; z<${#CleanPurgeArray[@]}; z++)); do
-            # Before we actually purge, we want to check that the new ZIM downloaded and exists.
-            #   Fist, we have to figure out what the old ZIM was. To do this we'll have to iterate through the old Arrays. Ugh. Total PITA.
-            for ((o=0; o<${#PurgeArray[@]}; o++)); do
-                if [[ ${PurgeArray[$o]} = "${CleanPurgeArray[$z]}" ]]; then
-                    NewZIM=$ZIMPath$(basename "${DownloadArray[$o]}")
-                    OldZIM=${PurgeArray[$o]}
-                    break # Found it. No reason to keep looping.
-                fi
-            done
-            echo -e "\033[0;34m  Old : $OldZIM\033[0m"
-            echo "  Old : $OldZIM" >> purge.log
-            echo -e "\033[1;34m  New : $NewZIM\033[0m"
-            echo "  New : $NewZIM" >> purge.log
-            # Check for the new ZIM on disk.
-            if [[ -f $NewZIM ]]; then # New ZIM found
-                if [[ $DEBUG -eq 0 ]]; then
-                    echo -e "\033[1;32m  ✓ Status : New ZIM verified. Old ZIM purged.\033[0m"
-                    echo "  ✓ Status : New ZIM verified. Old ZIM purged." >> purge.log
-                    [[ -f $OldZIM ]] && rm "${CleanPurgeArray[$z]}" # Purge old ZIM
-                else
-                    echo -e "\033[1;32m  ✓ Status : *** Simulated ***\033[0m"
-                    echo "  ✓ Status : *** Simulated ***" >> purge.log
-                fi
-            else # New ZIM not found. Something went wrong, so we will skip this purge.
-                if [[ $DEBUG -eq 0 ]]; then
-                    echo -e "\033[0;31m  ✗ Status : New ZIM failed verification. Old ZIM purge skipped.\033[0m"
-                    echo "  ✗ Status : New ZIM failed verification. Old ZIM purge skipped." >> purge.log
-                else
-                    echo -e "\033[1;32m  ✓ Status : *** Simulated ***\033[0m"
-                    echo "  ✓ Status : *** Simulated ***" >> purge.log
-                fi
-            fi
-            echo
-            echo >> purge.log
-        done
-        [[ $DEBUG -eq 0 ]] && date -u >> purge.log
-        [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
+    if [[ $SKIP_PURGE -eq 1 ]]; then
+        echo -e "\033[1;31m  Skipped\033[0m"
     else
-        echo -e "\033[0;32m    ✓ Purge: Nothing to purge.\033[0m"
-        echo
+        # Let's clear out any possible duplicates.
+        CleanPurgeArray=($(printf "%s\n" "${PurgeArray[@]}" | sort -u)) # Sort Array
+
+        # Let's start the purge process, but only if there are items to purge.
+        if [ ${#CleanPurgeArray[@]} -ne 0 ]; then
+            echo >> purge.log
+            echo "=======================================================================" >> purge.log
+            [[ $DEBUG -eq 0 ]] && date -u >> purge.log
+            [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
+            echo >> purge.log
+            for ((z=0; z<${#CleanPurgeArray[@]}; z++)); do
+                # Before we actually purge, we want to check that the new ZIM downloaded and exists.
+                #   Fist, we have to figure out what the old ZIM was. To do this we'll have to iterate through the old Arrays. Ugh. Total PITA.
+                for ((o=0; o<${#PurgeArray[@]}; o++)); do
+                    if [[ ${PurgeArray[$o]} = "${CleanPurgeArray[$z]}" ]]; then
+                        NewZIM=$ZIMPath$(basename "${DownloadArray[$o]}")
+                        OldZIM=${PurgeArray[$o]}
+                        break # Found it. No reason to keep looping.
+                    fi
+                done
+                echo -e "\033[0;34m  Old : $OldZIM\033[0m"
+                echo "  Old : $OldZIM" >> purge.log
+                echo -e "\033[1;34m  New : $NewZIM\033[0m"
+                echo "  New : $NewZIM" >> purge.log
+                # Check for the new ZIM on disk.
+                if [[ -f $NewZIM ]]; then # New ZIM found
+                    if [[ $DEBUG -eq 0 ]]; then
+                        echo -e "\033[1;32m  ✓ Status : New ZIM verified. Old ZIM purged.\033[0m"
+                        echo "  ✓ Status : New ZIM verified. Old ZIM purged." >> purge.log
+                        [[ -f $OldZIM ]] && rm "${CleanPurgeArray[$z]}" # Purge old ZIM
+                    else
+                        echo -e "\033[1;32m  ✓ Status : *** Simulated ***\033[0m"
+                        echo "  ✓ Status : *** Simulated ***" >> purge.log
+                    fi
+                else # New ZIM not found. Something went wrong, so we will skip this purge.
+                    if [[ $DEBUG -eq 0 ]]; then
+                        echo -e "\033[0;31m  ✗ Status : New ZIM failed verification. Old ZIM purge skipped.\033[0m"
+                        echo "  ✗ Status : New ZIM failed verification. Old ZIM purge skipped." >> purge.log
+                    else
+                        echo -e "\033[1;32m  ✓ Status : *** Simulated ***\033[0m"
+                        echo "  ✓ Status : *** Simulated ***" >> purge.log
+                    fi
+                fi
+                echo
+                echo >> purge.log
+            done
+            [[ $DEBUG -eq 0 ]] && date -u >> purge.log
+            [[ $DEBUG -eq 1 ]] && echo "$(date -u) *** Simulation ***" >> purge.log
+        else
+            echo -e "\033[0;32m    ✓ Purge: Nothing to purge.\033[0m"
+            echo
+        fi
     fi
     unset PurgeArray # Housekeeping
     unset CleanPurgeArray # Housekeeping
@@ -418,7 +423,6 @@ function ProgressBar {
 
 while [[ $# -gt 0 ]]; do
   case $1 in
-    # accepts -h* (h and then anything else) and -*h* which will accept a single dash, other args, and then an h, and then more args. this allows -shvd style of arg calling
     -h|--help)
       usage_example
       ;;
@@ -430,8 +434,8 @@ while [[ $# -gt 0 ]]; do
       echo "$VER"
       exit 0
       ;;
-    -s|--skip-sha-check)
-      SKIP_CHECK=1
+    -p|--skip-purge)
+      SKIP_PURGE=1
       shift # discard argument
       ;;
     *)
