@@ -324,6 +324,7 @@ zim_purge() {
     echo
     if [[ $SKIP_PURGE -eq 1 ]]; then
         echo -e "\033[1;31m  Skipped\033[0m"
+        echo
     else
         # Let's clear out any possible duplicates.
         CleanPurgeArray=($(printf "%s\n" "${PurgeArray[@]}" | sort -u)) # Sort Array
