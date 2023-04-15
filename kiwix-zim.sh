@@ -16,8 +16,13 @@ SCRIPTNAME="$0"
 ARGS=( "$@" )
 BRANCH="main"
 DEBUG=1 # This forces the script to default to "dry-run/simulation mode"
+MIN_SIZE=0
+MAX_SIZE=0
+CALCULATE_CHECKSUM=0
 BaseURL="https://download.kiwix.org/zim/"
 ZIMPath=""
+
+declare -A ZimRootCache
 
 # master_scrape - Scrape "download.kiwix.org/zim/" for roots (directories) and zims (files)
 master_scrape() {
@@ -137,12 +142,16 @@ usage_example() {
     echo '    /full/path/                Full path to ZIM directory'
     echo
     echo 'Options:'
+    echo '    -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.'
     echo '    -d, --disable-dry-run      Dry-Run Override.'
     echo '                               *** Caution ***'
     echo
     echo '    -h, --help                 Show this usage and exit.'
-    echo
     echo '    -p, --skip-purge           Skips purging any replaced ZIMs.'
+    echo '    -n <size>, --min-size      Minimum ZIM Size to be downloaded.'
+    echo '                               Specify units include M Mi G Gi, etc. See `man numfmt`'
+    echo '    -x <size> , --man-size     Maximum ZIM Size to be downloaded.'
+    echo '                               Specify units include M Mi G Gi, etc. See `man numfmt`'
     echo
     exit 0
 }
@@ -154,8 +163,12 @@ onlineZIMcheck() {
     unset RawURLArray
 
     # Parse RAW Website - The online directory checked is based upon the ZIM's Root
+    Extension="$(echo "${ZIMRootArray[$1]}" | grep -ioP '[^/]+')"
     URL="$BaseURL${ZIMRootArray[$1]}/"
-    IFS=$'\n' read -r -d '' -a RawURLArray < <( wget -q "$URL" -O - | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
+    if ! [[ -v "ZimRootCache[$Extension]" ]]; then
+        ZimRootCache["$Extension"]="$(wget -q "$URL" -O -)"
+    fi
+    IFS=$'\n' read -r -d '' -a RawURLArray < <( echo "${ZimRootCache[$Extension]}" | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
 
     # Parse for Valid Releases
     for x in "${RawURLArray[@]}"; do
@@ -165,6 +178,7 @@ onlineZIMcheck() {
     # Let's sort the array in reverse to ensure newest versions are first when we dig through.
     #  This does slow down the search a little, but ensures the newest version is picked first every time.
     URLArray=($(printf "%s\n" "${DirtyURLArray[@]}" | sort -r)) # Sort Array
+    unset Extension
     unset DirtyURLArray # Housekeeping...
 }
 
@@ -249,11 +263,13 @@ mirror_search() {
     DownloadURL=""
     Direct=${CleanDownloadArray[$z]}
     # Silently fetch (via curl) the associated meta4 xml and extract the mirror URL marked priority="1"
-    RawMirror=$(curl -s "$Direct".meta4 | grep 'priority="1"' | grep -Eo 'https?://[^ ")]+')
+    MetaInfo=$(curl -s "$Direct".meta4)
+    ExpectedSize=$(echo "$MetaInfo" | grep '<size>' | grep -Po '\d+')
+    ExpectedHash=$(echo "$MetaInfo" | grep '<hash type="sha-256">' | grep -Poi '(?<="sha-256">)[a-f\d]{64}(?=<)')
+    RawMirror=$(echo "$MetaInfo" | grep 'priority="1"' | grep -Po 'https?://[^ ")]+(?=</url>)')
     # Check that we actually got a URL (this could probably be done better). If no mirror URL, default back to direct URL.
     if [[ $RawMirror == *"http"* ]]; then # Mirror URL found
-        CleanMirror=${RawMirror%</url>} # We need to remove the trailing "</url>".
-        DownloadURL=$CleanMirror # Set the mirror URL as our download URL
+        DownloadURL=$RawMirror # Set the mirror URL as our download URL
         IsMirror=1
     else # Mirror URL not found
         DownloadURL=${CleanDownloadArray[$z]} # Set the direct download URL as our download URL
@@ -272,20 +288,33 @@ zim_download() {
     if [ ${#CleanDownloadArray[@]} -ne 0 ]; then
         for ((z=0; z<${#CleanDownloadArray[@]}; z++)); do # Iterate through the download queue.
             mirror_search # Let's look for a mirror URL first.
-            FileName=$(basename "$DownloadURL") # Extract New/Updated ZIM file name.
-            FilePath=$ZIMPath$FileName # Set destination path with file name
 
             [[ $IsMirror -eq 0 ]] && echo -e "\033[1;34m  Download (direct) : $DownloadURL\033[0m"
             [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
 
+            FileName=$(basename "$DownloadURL") # Extract New/Updated ZIM file name.
+            FilePath=$ZIMPath$FileName # Set destination path with file name
+
             if [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM already exists on disk. Skipping download.\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.\033[0m"
+                echo
+                continue
+            elif [[ $MIN_SIZE -gt 0 ]] && [[ $ExpectedSize -lt $MIN_SIZE ]]; then
+                [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                echo
+                continue
+            elif [[ $MAX_SIZE -gt 0 ]] && [[ $ExpectedSize -gt $MAX_SIZE ]]; then
+                [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                echo
+                continue
             else # New ZIM not found, so we'll go ahead and download it.
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[1;32m  ✓ Status : ZIM doesn't exist on disk. Downloading...\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[1;32m  ✓ Status : *** Simulated ***  ZIM doesn't exist on disk. Downloading...\033[0m"
+                echo
             fi
-            echo
 
             # Here is where we actually download the files and log to the download.log file.
             echo >> download.log
@@ -305,6 +334,16 @@ zim_download() {
             else # New ZIM not found, so we'll go ahead and download it.
                 [[ $DEBUG -eq 0 ]] && curl -L -o "$FilePath" "$DownloadURL" |& tee -a download.log && echo # Download new ZIM
                 [[ $DEBUG -eq 1 ]] && echo "  Download : $FilePath" >> download.log
+            fi
+            if [[ $DEBUG -eq 0 ]] && [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
+                echo "$ExpectedHash $FilePath" > "$FilePath.sha256"
+                if ! sha256sum --status -c "$FilePath.sha256"; then
+                    echo -e "\033[0;31m  ✗ Checksum failed, removing corrupt file\033[0m"
+                    rm "$FilePath"
+                else
+                    echo -e "\033[0;32m  ✓ Checksum passed\033[0m"
+                fi
+                rm "$FilePath.sha256"
             fi
             echo >> download.log
             [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >> download.log
@@ -439,6 +478,20 @@ while [[ $# -gt 0 ]]; do
       SKIP_PURGE=1
       shift # discard argument
       ;;
+    -n|--min-size)
+      shift # discard -n argument
+      MIN_SIZE=$(numfmt --from=auto "$1") # convert passed arg to bytes
+      shift # discard value
+      ;;
+    -x|--max-size)
+      shift # discard -x argument
+      MAX_SIZE=$(numfmt --from=auto "$1") # convert passed arg to bytes
+      shift # discard value
+      ;;
+    -c|--calculate-checksum)
+      CALCULATE_CHECKSUM=1
+      shift
+      ;;
     *)
       # We can either parse the arg here, or just tuck it away for safekeeping
       POSITIONAL_ARGS+=("$1") # save positional arg
@@ -537,6 +590,8 @@ for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
     fi
     echo
 done
+
+unset ZimRootCache
 
 # Process the download que.
 zim_download
