@@ -6,7 +6,7 @@ VER="2.2"
 PackagesArray=('curl')
 
 # Set Script Arrays
-LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); DownloadArray=(); MasterRootArray=(); MasterZIMArray=();
+LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); ZimSkipped=(); DownloadArray=(); MasterRootArray=(); MasterZIMArray=();
 
 # Set Script Strings
 SCRIPT="$(readlink -f "$0")"
@@ -76,7 +76,7 @@ self_update() {
     # Check if script path is a git clone.
     #   If true, then check for update.
     #   If false, skip self-update check/funciton.
-    if [[ -d "$SCRIPTPATH/.git" ]]; then
+    if false && [[ -d "$SCRIPTPATH/.git" ]]; then
         echo -e "\033[1;32m   ✓ Git Clone Detected: Checking Script Version...\033[0m"
         cd "$SCRIPTPATH" || exit 1
         timeout 1s git fetch --quiet
@@ -150,7 +150,7 @@ usage_example() {
     echo '    -p, --skip-purge           Skips purging any replaced ZIMs.'
     echo '    -n <size>, --min-size      Minimum ZIM Size to be downloaded.'
     echo '                               Specify units include M Mi G Gi, etc. See `man numfmt`'
-    echo '    -x <size> , --man-size     Maximum ZIM Size to be downloaded.'
+    echo '    -x <size> , --max-size     Maximum ZIM Size to be downloaded.'
     echo '                               Specify units include M Mi G Gi, etc. See `man numfmt`'
     echo
     exit 0
@@ -296,21 +296,25 @@ zim_download() {
             FilePath=$ZIMPath$FileName # Set destination path with file name
 
             if [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
+                ZimSkipped[$z]=1
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM already exists on disk. Skipping download.\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.\033[0m"
                 echo
                 continue
             elif [[ $MIN_SIZE -gt 0 ]] && [[ $ExpectedSize -lt $MIN_SIZE ]]; then
+                ZimSkipped[$z]=1
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
                 echo
                 continue
             elif [[ $MAX_SIZE -gt 0 ]] && [[ $ExpectedSize -gt $MAX_SIZE ]]; then
+                ZimSkipped[$z]=1
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
                 echo
                 continue
             else # New ZIM not found, so we'll go ahead and download it.
+                ZimSkipped[$z]=0
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[1;32m  ✓ Status : ZIM doesn't exist on disk. Downloading...\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[1;32m  ✓ Status : *** Simulated ***  ZIM doesn't exist on disk. Downloading...\033[0m"
                 echo
@@ -404,8 +408,13 @@ zim_purge() {
                         echo -e "\033[0;31m  ✗ Status : New ZIM failed verification. Old ZIM purge skipped.\033[0m"
                         echo "  ✗ Status : New ZIM failed verification. Old ZIM purge skipped." >> purge.log
                     else
-                        echo -e "\033[1;32m  ✓ Status : *** Simulated ***\033[0m"
-                        echo "  ✓ Status : *** Simulated ***" >> purge.log
+                        if [[ ${ZimSkipped[$z]} -eq 0 ]]; then
+                            echo -e "\033[1;32m  ✓ Status : *** Simulated ***\033[0m"
+                            echo "  ✓ Status : *** Simulated ***" >> purge.log
+                        else
+                            echo -e "\033[1;33m  ✗ Status : *** Simulated *** Zim was skipped, and will not be purged\033[0m"
+                            echo "  ✗ Status : *** Simulated *** Zim purge skipped" >> purge.log
+                        fi
                     fi
                 fi
                 echo
