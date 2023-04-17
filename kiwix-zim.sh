@@ -15,14 +15,17 @@ SCRIPTPATH="$(dirname "$SCRIPT")"
 SCRIPTNAME="$0"
 ARGS=( "$@" )
 BRANCH="main"
+SKIP_UPDATE=0
 DEBUG=1 # This forces the script to default to "dry-run/simulation mode"
 MIN_SIZE=0
 MAX_SIZE=0
 CALCULATE_CHECKSUM=0
+VERIFY_LIBRARY=0
 BaseURL="https://download.kiwix.org/zim/"
 ZIMPath=""
 
 declare -A ZimRootCache
+ZimRootCache[NotFound]=""
 
 # master_scrape - Scrape "download.kiwix.org/zim/" for roots (directories) and zims (files)
 master_scrape() {
@@ -37,7 +40,7 @@ master_scrape() {
     unset MasterZIMRootArray
 
     # Parse Website for Root Directories
-    IFS=$'\n' read -r -d '' -a RawMasterRootArray < <( wget -q "$BaseURL" -O - | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
+    IFS=$'\n' read -r -d '' -a RawMasterRootArray < <( wget -q "$BaseURL?F=0" -O - | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
 
     # Parse for Valid Responces and save into MasterRootArray
     for x in "${RawMasterRootArray[@]}"; do
@@ -53,7 +56,7 @@ master_scrape() {
         ProgressBar ${a} ${#MasterRootArray[@]}
 
         # Parse Website Directory for ZIMs
-        IFS=$'\n' read -r -d '' -a RawMasterZIMArray < <( wget -q "$BaseURL$i" -O - | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
+        IFS=$'\n' read -r -d '' -a RawMasterZIMArray < <( wget -q "$BaseURL$i?F=0" -O - | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
 
         # Parse for Valid Responces and save into MasterZIMArray
         for z in "${RawMasterZIMArray[@]}"; do
@@ -76,7 +79,9 @@ self_update() {
     # Check if script path is a git clone.
     #   If true, then check for update.
     #   If false, skip self-update check/funciton.
-    if [[ -d "$SCRIPTPATH/.git" ]]; then
+    if [ $SKIP_UPDATE -eq 1 ]; then
+        echo -e "\033[0;33m   Check Skipped\033[0m"
+    elif [[ -d "$SCRIPTPATH/.git" ]]; then
         echo -e "\033[1;32m   ✓ Git Clone Detected: Checking Script Version...\033[0m"
         cd "$SCRIPTPATH" || exit 1
         timeout 1s git fetch --quiet
@@ -143,11 +148,14 @@ usage_example() {
     echo
     echo 'Options:'
     echo '    -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.'
+    echo '    -f, --verify-library       Verifies that the entire library has the correct checksums as found online.'
+    echo '                               For this reason, a file `library.sha256` will be left in your library for running sha256sum manually'
     echo '    -d, --disable-dry-run      Dry-Run Override.'
     echo '                               *** Caution ***'
     echo
     echo '    -h, --help                 Show this usage and exit.'
     echo '    -p, --skip-purge           Skips purging any replaced ZIMs.'
+    echo '    -u, --skip-update          Skips checking for script updates (very useful for development).'
     echo '    -n <size>, --min-size      Minimum ZIM Size to be downloaded.'
     echo '                               Specify units include M Mi G Gi, etc. See `man numfmt`'
     echo '    -x <size> , --max-size     Maximum ZIM Size to be downloaded.'
@@ -164,8 +172,8 @@ onlineZIMcheck() {
 
     # Parse RAW Website - The online directory checked is based upon the ZIM's Root
     Extension="$(echo "${ZIMRootArray[$1]}" | grep -ioP '[^/]+')"
-    URL="$BaseURL${ZIMRootArray[$1]}/"
     if ! [[ -v "ZimRootCache[$Extension]" ]]; then
+        URL="$BaseURL${ZIMRootArray[$1]}?F=0"
         ZimRootCache["$Extension"]="$(wget -q "$URL" -O -)"
     fi
     IFS=$'\n' read -r -d '' -a RawURLArray < <( echo "${ZimRootCache[$Extension]}" | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
@@ -289,13 +297,17 @@ zim_download() {
         for ((z=0; z<${#CleanDownloadArray[@]}; z++)); do # Iterate through the download queue.
             mirror_search # Let's look for a mirror URL first.
 
-            [[ $IsMirror -eq 0 ]] && echo -e "\033[1;34m  Download (direct) : $DownloadURL\033[0m"
-            [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
+            if [ $VERIFY_LIBRARY -eq 0 ]; then
+                [[ $IsMirror -eq 0 ]] && echo -e "\033[1;34m  Download (direct) : $DownloadURL\033[0m"
+                [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
+            fi
 
             FileName=$(basename "$DownloadURL") # Extract New/Updated ZIM file name.
             FilePath=$ZIMPath$FileName # Set destination path with file name
 
-            if [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
+            echo -e "\033[1;34m  Calculating checksum for : $FileName\033[0m"
+
+            if [ $VERIFY_LIBRARY -eq 0 ] && [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
                 ZimSkipped[$z]=1
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM already exists on disk. Skipping download.\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.\033[0m"
@@ -303,21 +315,46 @@ zim_download() {
                 continue
             elif [[ $MIN_SIZE -gt 0 ]] && [[ $ExpectedSize -lt $MIN_SIZE ]]; then
                 ZimSkipped[$z]=1
-                [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
-                [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                if [ $VERIFY_LIBRARY -eq 0 ]; then
+                    [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                    [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                else
+                    [[ $DEBUG -eq 0 ]] && echo -e "\033[0;33m  ✓ Status : ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping check.\033[0m"
+                    [[ $DEBUG -eq 1 ]] && echo -e "\033[0;33m  ✓ Status : *** Simulated ***  ZIM smaller than specified minimum size (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping check.\033[0m"
+                fi
                 echo
                 continue
             elif [[ $MAX_SIZE -gt 0 ]] && [[ $ExpectedSize -gt $MAX_SIZE ]]; then
                 ZimSkipped[$z]=1
-                [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
-                [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                if [ $VERIFY_LIBRARY -eq 0 ]; then
+                    [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                    [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping download.\033[0m"
+                else
+                    [[ $DEBUG -eq 0 ]] && echo -e "\033[0;33m  ✓ Status : ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping check.\033[0m"
+                    [[ $DEBUG -eq 1 ]] && echo -e "\033[0;33m  ✓ Status : *** Simulated ***  ZIM larger than specified maximum size (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$ExpectedSize")). Skipping check.\033[0m"
+                fi
                 echo
                 continue
-            else # New ZIM not found, so we'll go ahead and download it.
+            elif [ $VERIFY_LIBRARY -eq 0 ]; then # New ZIM not found, so we'll go ahead and download it.
                 ZimSkipped[$z]=0
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[1;32m  ✓ Status : ZIM doesn't exist on disk. Downloading...\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[1;32m  ✓ Status : *** Simulated ***  ZIM doesn't exist on disk. Downloading...\033[0m"
                 echo
+            else
+                echo "$ExpectedHash $FilePath" > "$FilePath.sha256"
+                if ! sha256sum --status -c "$FilePath.sha256"; then
+                    if [[ $DEBUG -eq 0 ]]; then
+                        echo -e "\033[1;31m  ✗ Status : Checksum failed, removing corrupt file\033[0m"
+                        rm "$FilePath"
+                    else
+                        echo -e "\033[1;31m  ✗ Status : *** Simulated *** Checksum failed, removing corrupt file ($FilePath)\033[0m"
+                    fi
+                else
+                    echo -e "\033[1;32m  ✓ Status : Checksum passed\033[0m"
+                fi
+                echo
+                rm "$FilePath.sha256"
+                continue
             fi
 
             # Here is where we actually download the files and log to the download.log file.
@@ -342,8 +379,12 @@ zim_download() {
             if [[ $DEBUG -eq 0 ]] && [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
                 echo "$ExpectedHash $FilePath" > "$FilePath.sha256"
                 if ! sha256sum --status -c "$FilePath.sha256"; then
-                    echo -e "\033[0;31m  ✗ Checksum failed, removing corrupt file\033[0m"
-                    rm "$FilePath"
+                    if [[ $DEBUG -eq 0 ]]; then
+                        echo -e "\033[0;31m  ✗ Checksum failed, removing corrupt file\033[0m"
+                        rm "$FilePath"
+                    else
+                        echo -e "\033[0;31m  *** Simulated *** ✗ Checksum failed, removing corrupt file ($FilePath)\033[0m"
+                    fi
                 else
                     echo -e "\033[0;32m  ✓ Checksum passed\033[0m"
                 fi
@@ -501,6 +542,15 @@ while [[ $# -gt 0 ]]; do
       CALCULATE_CHECKSUM=1
       shift
       ;;
+    -f|--verfiy-library)
+      VERIFY_LIBRARY=1
+      CALCULATE_CHECKSUM=1
+      shift
+      ;;
+    -u|--skip-update)
+      SKIP_UPDATE=1
+      shift
+      ;;
     *)
       # We can either parse the arg here, or just tuck it away for safekeeping
       POSITIONAL_ARGS+=("$1") # save positional arg
@@ -579,24 +629,39 @@ for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
             ZIMYear=$(echo "${ZIMVerArray[$i]}" | cut -d "-" -f1)
             ZIMMonth=$(echo "${ZIMVerArray[$i]}" | cut -d "-" -f2)
 
-            # Check if online Year is older than local Year.
-            if [ "$OnlineYear" -lt "$ZIMYear" ]; then # Online Year is older, skip.
-                continue
-            # Check if Years are equal, but online Month is older than local Month.
-            elif [ "$OnlineYear" -eq "$ZIMYear" ] && [ "$OnlineMonth" -le "$ZIMMonth" ]; then # Years are equal, but Month is older, skip.
-                continue
-            else # Online is newer than local. Double Winner!
-                UpdateFound=1
-                echo -e "\033[1;32m    ✓ Update found! --> $OnlineVersion\033[0m"
-                DownloadArray+=( "$BaseURL${ZIMRootArray[$i]}/${URLArray[$x]}" )
-                PurgeArray+=( "$ZIMPath${ZIMNameArray[$i]}" )
-                break # No need to conitnue checking the URLArray.
+            if [ $VERIFY_LIBRARY -eq 1 ]; then
+                if [ "$OnlineYear" -eq "$ZIMYear" ] && [ "$OnlineMonth" -eq "$ZIMMonth" ]; then
+                    UpdateFound=2
+                    echo -e "\033[1;32m    ✓ Online Version Found\033[0m"
+                    DownloadArray+=( "$BaseURL${ZIMRootArray[$i]}/${URLArray[$x]}" )
+                    PurgeArray+=( "$ZIMPath${ZIMNameArray[$i]}" )
+                    break # No need to conitnue checking the URLArray.
+                fi
+            else
+                # Check if online Year is older than local Year.
+                if [ "$OnlineYear" -lt "$ZIMYear" ]; then # Online Year is older, skip.
+                    continue
+                # Check if Years are equal, but online Month is older than local Month.
+                elif [ "$OnlineYear" -eq "$ZIMYear" ] && [ "$OnlineMonth" -le "$ZIMMonth" ]; then # Years are equal, but Month is older, skip.
+                    continue
+                elif [ $UpdateFound -eq 0 ]; then # Online is newer than local. Double Winner!
+                    UpdateFound=1
+                    echo -e "\033[1;32m    ✓ Update found! --> $OnlineVersion\033[0m"
+                    DownloadArray+=( "$BaseURL${ZIMRootArray[$i]}/${URLArray[$x]}" )
+                    PurgeArray+=( "$ZIMPath${ZIMNameArray[$i]}" )
+                    break # No need to conitnue checking the URLArray.
+                fi
             fi
         fi
     done
     if [[ $UpdateFound -eq 0 ]]; then # No update was found.
-        echo "    ✗ No new update"
+        if [ $VERIFY_LIBRARY -eq 1 ]; then
+            echo "    ✗ Online Version Not Found"
+        else
+            echo "    ✗ No new update"
+        fi
     fi
+
     echo
 done
 
@@ -606,7 +671,7 @@ unset ZimRootCache
 zim_download
 
 # Process the purge que.
-zim_purge
+[ $VERIFY_LIBRARY -eq 0 ] && zim_purge
 
 # Display Footer.
 echo "=========================================="

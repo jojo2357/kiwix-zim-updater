@@ -87,11 +87,19 @@ UPDATE: If you decide not to install via a git clone, you can still use this scr
 ## Usage
 
 ```text
-    Usage: ./kiwix-zim.sh <h|d> /full/path/
-
-    /full/path/       Full path to ZIM directory
-
-    -d or d           Dry-Run Override
-
-    -h or h           Show this usage and exit
+    Usage: ./kiwix-zim.sh <options> /full/path/
+        /full/path/                Full path to ZIM directory
+        
+    Options:
+        -h, --help                 Show this usage and exit.
+        -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.
+        -d, --disable-dry-run      Dry-Run Override.
+                                   *** Caution ***
+        
+        -n <size>, --min-size      Minimum ZIM Size to be downloaded.
+                                   Specify units include M Mi G Gi, etc. See `man numfmt`
+        -x <size>, --max-size      Maximum ZIM Size to be downloaded.
+                                   Specify units include M Mi G Gi, etc. See `man numfmt`
+                                   
+        -p, --skip-purge           Skips purging any replaced ZIMs.
 ```
