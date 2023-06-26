@@ -1,9 +1,9 @@
 #!/bin/bash
 
-VER="2.2"
+VER="2.3"
 
 # Set required packages Array
-PackagesArray=('curl')
+PackagesArray=('wget')
 
 # Set Script Arrays
 LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); ZimSkipped=(); DownloadArray=(); MasterRootArray=(); MasterZIMArray=();
@@ -270,8 +270,8 @@ mirror_search() {
     IsMirror=0
     DownloadURL=""
     Direct=${CleanDownloadArray[$z]}
-    # Silently fetch (via curl) the associated meta4 xml and extract the mirror URL marked priority="1"
-    MetaInfo=$(curl -s "$Direct".meta4)
+    # Silently fetch (via wget) the associated meta4 xml and extract the mirror URL marked priority="1"
+    MetaInfo=$(wget -q -O - "$Direct".meta4)
     ExpectedSize=$(echo "$MetaInfo" | grep '<size>' | grep -Po '\d+')
     ExpectedHash=$(echo "$MetaInfo" | grep '<hash type="sha-256">' | grep -Poi '(?<="sha-256">)[a-f\d]{64}(?=<)')
     RawMirror=$(echo "$MetaInfo" | grep 'priority="1"' | grep -Po 'https?://[^ ")]+(?=</url>)')
@@ -286,7 +286,8 @@ mirror_search() {
 
 # zim_download - ZIM download Function
 zim_download() {
-    echo -e "\033[1;33m5. Downloading New ZIM(s)...\033[0m"
+    [[ $VERIFY_LIBRARY -eq 0 ]] && echo -e "\033[1;33m5. Downloading New ZIM(s)...\033[0m"
+    [[ $VERIFY_LIBRARY -eq 1 ]] && echo -e "\033[1;33m5. Verifying ZIM(s)...\033[0m"
     echo
 
     # Let's clear out any possible duplicates
@@ -304,10 +305,11 @@ zim_download() {
 
             FileName=$(basename "$DownloadURL") # Extract New/Updated ZIM file name.
             FilePath=$ZIMPath$FileName # Set destination path with file name
+            LockFilePath="$ZIMPath.~lock.$FileName" # Set destination path with file name
 
             echo -e "\033[1;34m  Calculating checksum for : $FileName\033[0m"
 
-            if [ $VERIFY_LIBRARY -eq 0 ] && [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
+            if [ $VERIFY_LIBRARY -eq 0 ] && [[ -f $FilePath ]] && ! [[ -f $LockFilePath ]]; then # New ZIM already found, and no interruptions, we don't need to download it.
                 ZimSkipped[$z]=1
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM already exists on disk. Skipping download.\033[0m"
                 [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.\033[0m"
@@ -337,8 +339,13 @@ zim_download() {
                 continue
             elif [ $VERIFY_LIBRARY -eq 0 ]; then # New ZIM not found, so we'll go ahead and download it.
                 ZimSkipped[$z]=0
-                [[ $DEBUG -eq 0 ]] && echo -e "\033[1;32m  ✓ Status : ZIM doesn't exist on disk. Downloading...\033[0m"
-                [[ $DEBUG -eq 1 ]] && echo -e "\033[1;32m  ✓ Status : *** Simulated ***  ZIM doesn't exist on disk. Downloading...\033[0m"
+                if [[ -f $LockFilePath ]]; then
+                    [[ $DEBUG -eq 0 ]] && echo -e "\033[1;32m  ✓ Status : ZIM download was interrupted. Continuing...\033[0m"
+                    [[ $DEBUG -eq 1 ]] && echo -e "\033[1;32m  ✓ Status : *** Simulated ***  ZIM download was interrupted. Continuing...\033[0m"
+                else
+                    [[ $DEBUG -eq 0 ]] && echo -e "\033[1;32m  ✓ Status : ZIM doesn't exist on disk. Downloading...\033[0m"
+                    [[ $DEBUG -eq 1 ]] && echo -e "\033[1;32m  ✓ Status : *** Simulated ***  ZIM doesn't exist on disk. Downloading...\033[0m"
+                fi
                 echo
             else
                 echo "$ExpectedHash $FilePath" > "$FilePath.sha256"
@@ -369,11 +376,14 @@ zim_download() {
             echo >> download.log
 
             # Before we actually download, let's just check to see that it isn't already in the folder.
-            if [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
-                #[[ $DEBUG -eq 0 ]] && curl -L -o "$FilePath" "$DownloadURL" |& tee -a download.log && echo # Download new ZIM
+            if [[ -f "$LockFilePath" ]]; then
+                [[ $DEBUG -eq 0 ]] && wget -q --show-progress -c -O "$FilePath" "$DownloadURL" 1>>download.log && echo # Download new ZIM
+                [[ $DEBUG -eq 1 ]] && echo "  Continue Download : $FilePath" >> download.log
+            elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
                 [[ $DEBUG -eq 1 ]] && echo "  Download : New ZIM already exists on disk. Skipping download." >> download.log
             else # New ZIM not found, so we'll go ahead and download it.
-                [[ $DEBUG -eq 0 ]] && curl -L -o "$FilePath" "$DownloadURL" |& tee -a download.log && echo # Download new ZIM
+                [[ $DEBUG -eq 0 ]] && touch "$LockFilePath"
+                [[ $DEBUG -eq 0 ]] && wget -q --show-progress -c -O "$FilePath" "$DownloadURL" 1>>download.log && echo # Download new ZIM
                 [[ $DEBUG -eq 1 ]] && echo "  Download : $FilePath" >> download.log
             fi
             if [[ $DEBUG -eq 0 ]] && [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
@@ -388,7 +398,9 @@ zim_download() {
                 else
                     echo -e "\033[0;32m  ✓ Checksum passed\033[0m"
                 fi
+                echo
                 rm "$FilePath.sha256"
+                rm "$LockFilePath"
             fi
             echo >> download.log
             [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >> download.log
