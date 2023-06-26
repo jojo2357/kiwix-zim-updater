@@ -377,13 +377,13 @@ zim_download() {
 
             # Before we actually download, let's just check to see that it isn't already in the folder.
             if [[ -f "$LockFilePath" ]]; then
-                [[ $DEBUG -eq 0 ]] && wget -q --show-progress -c -O "$FilePath" "$DownloadURL" 1>>download.log && echo # Download new ZIM
+                [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" |& tee -a download.log && echo # Download new ZIM
                 [[ $DEBUG -eq 1 ]] && echo "  Continue Download : $FilePath" >> download.log
             elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
                 [[ $DEBUG -eq 1 ]] && echo "  Download : New ZIM already exists on disk. Skipping download." >> download.log
             else # New ZIM not found, so we'll go ahead and download it.
                 [[ $DEBUG -eq 0 ]] && touch "$LockFilePath"
-                [[ $DEBUG -eq 0 ]] && wget -q --show-progress -c -O "$FilePath" "$DownloadURL" 1>>download.log && echo # Download new ZIM
+                [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" |& tee -a download.log && echo # Download new ZIM
                 [[ $DEBUG -eq 1 ]] && echo "  Download : $FilePath" >> download.log
             fi
             if [[ $DEBUG -eq 0 ]] && [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
