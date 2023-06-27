@@ -307,8 +307,6 @@ zim_download() {
             FilePath=$ZIMPath$FileName # Set destination path with file name
             LockFilePath="$ZIMPath.~lock.$FileName" # Set destination path with file name
 
-            echo -e "\033[1;34m  Calculating checksum for : $FileName\033[0m"
-
             if [ $VERIFY_LIBRARY -eq 0 ] && [[ -f $FilePath ]] && ! [[ -f $LockFilePath ]]; then # New ZIM already found, and no interruptions, we don't need to download it.
                 ZimSkipped[$z]=1
                 [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM already exists on disk. Skipping download.\033[0m"
@@ -348,18 +346,24 @@ zim_download() {
                 fi
                 echo
             else
+                echo -e "\033[1;34m  Calculating checksum for : $FileName\033[0m"
+                echo "  Calculating checksum for : $FileName" >> checksums.log
                 echo "$ExpectedHash $FilePath" > "$FilePath.sha256"
                 if ! sha256sum --status -c "$FilePath.sha256"; then
                     if [[ $DEBUG -eq 0 ]]; then
                         echo -e "\033[1;31m  ✗ Status : Checksum failed, removing corrupt file\033[0m"
+                        echo "  ✗ Status : Checksum failed, removing corrupt file" >> checksums.log
                         rm "$FilePath"
                     else
                         echo -e "\033[1;31m  ✗ Status : *** Simulated *** Checksum failed, removing corrupt file ($FilePath)\033[0m"
+                        echo "  ✗ Status : *** Simulated *** Checksum failed, removing corrupt file ($FilePath)" >> checksums.log
                     fi
                 else
                     echo -e "\033[1;32m  ✓ Status : Checksum passed\033[0m"
+                    echo "  ✓ Status : Checksum passed" >> checksums.log
                 fi
                 echo
+                echo >> checksums.log
                 rm "$FilePath.sha256"
                 continue
             fi
@@ -386,22 +390,23 @@ zim_download() {
                 [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" |& tee -a download.log && echo # Download new ZIM
                 [[ $DEBUG -eq 1 ]] && echo "  Download : $FilePath" >> download.log
             fi
-            if [[ $DEBUG -eq 0 ]] && [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
+
+            if [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
                 echo "$ExpectedHash $FilePath" > "$FilePath.sha256"
-                if ! sha256sum --status -c "$FilePath.sha256"; then
-                    if [[ $DEBUG -eq 0 ]]; then
-                        echo -e "\033[0;31m  ✗ Checksum failed, removing corrupt file\033[0m"
-                        rm "$FilePath"
-                    else
-                        echo -e "\033[0;31m  *** Simulated *** ✗ Checksum failed, removing corrupt file ($FilePath)\033[0m"
-                    fi
+                if [[ $DEBUG -eq 0 ]] && ! sha256sum --status -c "$FilePath.sha256"; then
+                    echo -e "\033[0;31m  ✗ Checksum failed, removing corrupt file\033[0m"
+                    rm "$FilePath"
                 else
-                    echo -e "\033[0;32m  ✓ Checksum passed\033[0m"
+                    if [[ $DEBUG -eq 0 ]]; then
+                      echo -e "\033[0;32m  ✓ Checksum passed\033[0m"
+                    else
+                      echo -e "\033[0;32m  ✓ *** Simulated *** Checksum passed\033[0m"
+                    fi
                 fi
-                echo
                 rm "$FilePath.sha256"
-                rm "$LockFilePath"
             fi
+
+            rm "$LockFilePath"
             echo >> download.log
             [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >> download.log
             [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >> download.log
