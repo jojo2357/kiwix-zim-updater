@@ -2,11 +2,8 @@
 
 VER="3.0"
 
-# Set required packages Array
-PackagesArray=('wget')
-
 # Set Script Arrays
-LocalZIMArray=(); ZIMNameArray=(); ZIMRootArray=(); ZIMVerArray=(); RawURLArray=(); URLArray=(); PurgeArray=(); ZimSkipped=(); DownloadArray=(); MasterRootArray=(); MasterZIMArray=();
+LocalZIMArray=(); LocalZIMNameArray=(); LocalZIMRemoteIndexArray=(); LocalRequiresDownloadArray=();
 
 # Set Script Strings
 SCRIPT="$(readlink -f "$0")"
@@ -24,20 +21,12 @@ VERIFY_LIBRARY=0
 BaseURL="https://download.kiwix.org/zim/"
 ZIMPath=""
 
-declare -A ZimRootCache
-ZimRootCache[NotFound]=""
-
 # master_scrape - Scrape "download.kiwix.org/zim/" for roots (directories) and zims (files)
 master_scrape() {
-
-    # Clear out Arrays, for good measure.
-    unset RawMasterRootArray
-    unset MasterRootArray
-    unset DirtyMasterRootArray
-    unset RawMasterZIMArray
-    unset MasterZIMArray
-    unset DirtyMasterZIMArray
-    unset MasterZIMRootArray
+    unset RemoteFiles
+    unset Basenames
+    unset RemotePaths
+    unset RemoteCategory
 
     RawLibrary=$(wget -q -O - "https://library.kiwix.org/catalog/v2/entries?count=-1" | grep -i 'application/x-zim')
 
@@ -50,45 +39,16 @@ master_scrape() {
     IFS=$'\n' read -r -d '' -a RemotePaths < <( echo "$hrefs" | grep -ioP "^[\w:\/\-.]+" ); unset IFS # distinct from above for processing speed reasons
     IFS=$'\n' read -r -d '' -a RemoteCategory < <( echo "$hrefs" | grep -ioP "^[^/]+" ); unset IFS
 
-#    echo "File Sizes: ${#FileSizes[@]}"
-#    echo "Bazez: ${#Basenames[@]}"
-#    echo "Filez: ${#RemoteFiles[@]}"
-#    echo "Paths: ${#RemotePaths[@]}"
-#    echo "Categories: ${#RemoteCategory[@]}"
-
-#    # Parse Website for Root Directories
-#    IFS=$'\n' read -r -d '' -a RawMasterRootArray < <( wget -q "$BaseURL?F=0" -O - | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
-#
-#    # Parse for Valid Responces and save into MasterRootArray
-#    for x in "${RawMasterRootArray[@]}"; do
-#        [[ $x == [a-z]* ]] && MasterRootArray+=("$x")
-#    done
-#
-#    hits=0
-#    a=0
-#    # For each Root Directory...
-#    for i in "${MasterRootArray[@]}"
-#    do
-#        # Call ProgressBar Function
-#        ((++a))
-#        ProgressBar ${a} ${#MasterRootArray[@]}
-#
-##        IFS=$'\n' read -r -d '' -a RawMasterZIMArray < <( echo "$RawLibrary" | grep -ioP '(?<=href=")[\w:\/\-.]+(?=\.meta4")' | grep -ioP "$BaseURL[^/]+/\K.+" ); unset IFS
-#
-#        # Parse Website Directory for ZIMs
-#        IFS=$'\n' read -r -d '' -a RawMasterZIMArray < <( wget -q "$BaseURL$i?F=0" -O - | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
-#
-#        # Parse for Valid Responces and save into MasterZIMArray
-#        for z in "${RawMasterZIMArray[@]}"; do
-#            [[ $z == [a-z]* ]] && MasterZIMArray+=("${z%???????????}") && MasterZIMRootArray+=("$i") && hits=$((hits+1))
-#        done
-#    done
+    if [[ ${#RemoteFiles[@]} -eq 0 ]]; then
+        echo -e "\033[0;31m    ✗  Could not find any remote files, exiting"
+        exit 0
+    else
+        echo -e "\033[1;32m    ✓ Found ${#RemoteFiles[@]} files online"
+    fi
 
     # Housekeeping...
-    unset RawMasterRootArray
-    unset DirtyMasterRootArray
-    unset RawMasterZIMArray
-    unset DirtyMasterZIMArray
+    unset RawLibrary
+    unset hrefs
 }
 
 # self_update - Script Self-Update Function
@@ -158,32 +118,6 @@ usage_example() {
     exit 0
 }
 
-# onlineZIMcheck - Fetch/Scrape download.kiwix.org for single ZIM
-#onlineZIMcheck() {
-#    # Clear out Arrays, for good measure.
-#    unset URLArray
-#    unset RawURLArray
-#
-#    # Parse RAW Website - The online directory checked is based upon the ZIM's Root
-#    Extension="$(echo "${ZIMRootArray[$1]}" | grep -ioP '[^/]+')"
-#    if ! [[ -v "ZimRootCache[$Extension]" ]]; then
-#        URL="$BaseURL${ZIMRootArray[$1]}?F=0"
-#        ZimRootCache["$Extension"]="$(wget -q "$URL" -O -)"
-#    fi
-#    IFS=$'\n' read -r -d '' -a RawURLArray < <( echo "${ZimRootCache[$Extension]}" | tr "\t\r\n'" '   "' | grep -i -o '<a[^>]\+href[ ]*=[ \t]*"[^"]\+">[^<]*</a>' | sed -e 's/^.*"\([^"]\+\)".*$/\1/g' && printf '\0' ); unset IFS
-#
-#    # Parse for Valid Releases
-#    for x in "${RawURLArray[@]}"; do
-#        [[ $x == [a-z]* ]] && DirtyURLArray+=("$x")
-#    done
-#
-#    # Let's sort the array in reverse to ensure newest versions are first when we dig through.
-#    #  This does slow down the search a little, but ensures the newest version is picked first every time.
-#    URLArray=($(printf "%s\n" "${DirtyURLArray[@]}" | sort -r)) # Sort Array
-#    unset Extension
-#    unset DirtyURLArray # Housekeeping...
-#}
-
 # flags - Flag and ZIM Processing Functions
 flags() {
     echo -e "\033[1;33m2. Preprocessing...\033[0m"
@@ -232,52 +166,29 @@ flags() {
     echo -e "\033[1;34m  -Parsing ZIM(s)...\033[0m"
 
     for ((i=0; i<${#LocalZIMArray[@]}; i++)); do  # Loop through local ZIM(s).
-        ZIMNameArray[$i]=$(basename "${LocalZIMArray[$i]}")  # Extract file name.
+        LocalZIMNameArray[$i]=$(basename "${LocalZIMArray[$i]}")  # Extract file name.
         filename=$(basename "${LocalZIMArray[$i]}" | grep -ioP "[\w:\/\-.]+(?=\d{4}-\d{2}\.zim$)")  # Extract file name.
-#        IFS='_' read -ra fields <<< "${ZIMNameArray[$i]}"; unset IFS  # Break the filename into fields delimited by the underscore '_'
+#        IFS='_' read -ra fields <<< "${LocalZIMNameArray[$i]}"; unset IFS  # Break the filename into fields delimited by the underscore '_'
 
         # Search MasterZIMArray for the current local ZIM to discover the online Root (directory) for the URL
         for ((z=0; z<${#Basenames[@]}; z++)); do
             if [[ ${Basenames[$z]} == "$filename" ]]; then # Match Found (ignore the filename datepart).
-                ZIMRootArray[$i]="$z"
+                LocalZIMRemoteIndexArray[$i]="$z"
                 break
             else # No Match Found.
-                ZIMRootArray[$i]="-1"
+                LocalZIMRemoteIndexArray[$i]="-1"
             fi
         done
 
-        if [[ ZIMRootArray[$i] -eq -1 ]]; then
-            echo -e "\033[0;31m    ✗ ${ZIMNameArray[$i]}  No online match found.\033[0m"
+        if [[ LocalZIMRemoteIndexArray[$i] -eq -1 ]]; then
+            echo -e "\033[0;31m    ✗ ${LocalZIMNameArray[$i]}  No online match found.\033[0m"
         else
-            echo -e "\033[1;32m    ✓ ${ZIMNameArray[$i]}  [${RemoteCategory[${ZIMRootArray[$i]}]}]\033[0m"
+            echo -e "\033[1;32m    ✓ ${LocalZIMNameArray[$i]}  [${RemoteCategory[${LocalZIMRemoteIndexArray[$i]}]}]\033[0m"
         fi
     done
 
-    # Online ZIM(s) have a semi-strict filename standard we can use for matching to our local ZIM(s).
-#    for ((i=0; i<${#LocalZIMArray[@]}; i++)); do  # Loop through local ZIM(s).
-#        ZIMNameArray[$i]=$(basename "${LocalZIMArray[$i]}")  # Extract file name.
-#        IFS='_' read -ra fields <<< "${ZIMNameArray[$i]}"; unset IFS  # Break the filename into fields delimited by the underscore '_'
-#
-#        # Search MasterZIMArray for the current local ZIM to discover the online Root (directory) for the URL
-#        for ((z=0; z<${#MasterZIMArray[@]}; z++)); do
-#            if [[ ${MasterZIMArray[$z]} == "${ZIMNameArray[$i]%???????????}" ]]; then # Match Found (ignore the filename datepart).
-#                ZIMRootArray[$i]=${MasterZIMRootArray[$z]}
-#                break
-#            else # No Match Found.
-#                ZIMRootArray[$i]="NotFound"
-#            fi
-#        done
-#        ZIMVerArray[$i]=$(echo "${fields[-1]}" | cut -d "." -f1)  # Last element (minus the extension) is the Version - YYYY-MM
-#
-#        if [[ ${ZIMRootArray[$i]} == "NotFound" ]]; then
-#            echo -e "\033[0;31m    ✗ ${ZIMNameArray[$i]}  No online match found.\033[0m"
-#        else
-#            echo -e "\033[1;32m    ✓ ${ZIMNameArray[$i]}  [${ZIMRootArray[$i]}]\033[0m"
-#        fi
-#    done
-
     echo
-    echo -e "\033[0;32m    ${#ZIMNameArray[*]} ZIM(s) found.\033[0m"
+    echo -e "\033[0;32m    ${#LocalZIMNameArray[*]} ZIM(s) found.\033[0m"
     echo
 }
 
@@ -293,38 +204,10 @@ mirror_search() {
     RawMirror=$(echo "$MetaInfo" | grep 'priority="1"' | grep -Po 'https?://[^ ")]+(?=</url>)')
     # Check that we actually got a URL (this could probably be done better). If no mirror URL, default back to direct URL.
     if [[ $RawMirror == *"http"* ]]; then # Mirror URL found
-        DownloadURL=$RawMirror # Set the mirror URL as our download URL
+        DownloadURL="$RawMirror" # Set the mirror URL as our download URL
         IsMirror=1
     else # Mirror URL not found
-        DownloadURL=${CleanDownloadArray[$z]} # Set the direct download URL as our download URL
-    fi
-}
-
-# ProgressBar - Simple Progress Bar
-function ProgressBar {
-    bar_size=25
-    bar_char_done="#"
-    bar_char_todo="-"
-    bar_percentage_scale=2
-    current="$1"
-    total="$2"
-
-    # calculate the progress in percentage
-    percent=$(bc <<< "scale=$bar_percentage_scale; 100 * $current / $total" )
-
-    # The number of done and todo characters
-    done=$(bc <<< "scale=0; $bar_size * $percent / 100" )
-    todo=$(bc <<< "scale=0; $bar_size - $done" )
-
-    # build the done and todo sub-bars
-    done_sub_bar=$(printf "%${done}s" | tr " " "${bar_char_done}")
-    todo_sub_bar=$(printf "%${todo}s" | tr " " "${bar_char_todo}")
-
-    # output the bar
-    if [[ $percent == "100.00" ]]; then
-        echo -ne "\033[1;32m\r    [${done_sub_bar}${todo_sub_bar}] ${percent}%\033[0m"
-    else
-        echo -ne "\r    [${done_sub_bar}${todo_sub_bar}] ${percent}%"
+        DownloadURL="$BaseURL$RemotePath" # Set the direct download URL as our download URL
     fi
 }
 
@@ -426,12 +309,12 @@ echo
 
 AnyDownloads=0
 
-for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
-    RemoteIndex=${ZIMRootArray[$i]}
-    [[ $RemoteIndex -eq -1 ]] && DownloadArray+=( 0 ) && continue
-    FileName=${ZIMNameArray[$i]}
+for ((i=0; i<${#LocalZIMNameArray[@]}; i++)); do
+    RemoteIndex=${LocalZIMRemoteIndexArray[$i]}
+    [[ $RemoteIndex -eq -1 ]] && LocalRequiresDownloadArray+=( 0 ) && continue
+    FileName=${LocalZIMNameArray[$i]}
     echo -e "\033[1;34m  - $FileName:\033[0m"
-    [[ -f "$ZIMPath.~lock.$FileName" ]] && echo -e "\033[0;33m    Incomplete download detected\n\033[1;32m    ✓ Online Version Found\033[0m" && DownloadArray+=( 1 ) && AnyDownloads=1 && continue
+    [[ -f "$ZIMPath.~lock.$FileName" ]] && echo -e "\033[0;33m    Incomplete download detected\n\033[1;32m    ✓ Online Version Found\033[0m" && LocalRequiresDownloadArray+=( 1 ) && AnyDownloads=1 && continue
 
     MatchingSize=${FileSizes[$RemoteIndex]}
     MatchingFileName=${RemoteFiles[$RemoteIndex]}
@@ -440,112 +323,43 @@ for ((i=0; i<${#ZIMNameArray[@]}; i++)); do
 
     if [[ "$MatchingFileName" == "$FileName" ]]; then
         if [ $VERIFY_LIBRARY -eq 1 ]; then
-            DownloadArray+=( 1 )
+            LocalRequiresDownloadArray+=( 1 )
             AnyDownloads=1
             echo -e "\033[1;32m    ✓ Online Version Found\033[0m"
         else
-            DownloadArray+=( 0 )
+            LocalRequiresDownloadArray+=( 0 )
             echo "    ✗ No new update"
         fi
     else
         if [ $VERIFY_LIBRARY -eq 1 ]; then
-            if wget -S --spider -q -O - "$BaseURL$MatchingCategory$FileName.meta4">/dev/null 2>&1; then
-                DownloadArray+=( 1 )
+            echo "    Checking for online checksum..."
+            if wget -S --spider -q -O - "$BaseURL$MatchingCategory/$FileName.meta4">/dev/null 2>&1; then
+                LocalRequiresDownloadArray+=( 1 )
                 AnyDownloads=1
                 echo -e "\033[1;32m    ✓ Online Version Found\033[0m"
             else
-                DownloadArray+=( 0 )
+                LocalRequiresDownloadArray+=( 0 )
                 echo "    ✗ Online Version Not Found"
             fi
         else
-            DownloadArray+=( 1 )
+            LocalRequiresDownloadArray+=( 1 )
             AnyDownloads=1
             echo -e "\033[1;32m    ✓ Update found! --> $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')\033[0m"
         fi
     fi
-
-#    unset Zmfields # Housekeeping
-#    IFS='_' read -ra Zmfields <<< ${ZIMNameArray[$i]}; unset IFS # Break name into fields
-#    unset Onfields # Housekeeping
-#    IFS='_' read -ra Onfields <<< ${ZIMRootArray[$i]}; unset IFS # Break URL name into fields
-#
-#    for ((x=0; x<${#URLArray[@]}; x++)); do
-#        unset Onfields # Housekeeping
-#        IFS='_' read -ra Onfields <<< ${URLArray[$x]}; unset IFS # Break URL name into fields
-#        match=1
-#        # Here we need to iterate through the fields in order to find a full match.
-#        for ((t=0; t<$((${#Onfields[@]} - 1)); t++)); do
-#            # Do they have the same field counts?
-#            if [ ${#Onfields[@]} = ${#Zmfields[@]} ]; then # Field counts match, keep going.
-#                # Are the current fields equal?
-#                if [ "${Onfields[$t]}" != "${Zmfields[$t]}" ]; then # Not equal, abort and goto the next entry.
-#                    match=0
-#                    break # <-- This (and the one below, give a 55% increase in speed/performance. Woot!)
-#                fi
-#            else # Field counts don't match, abort and goto the next entry.
-#                match=0
-#                break # <-- This (and the one above, give a 55% increase in speed/performance. Woot!)
-#            fi
-#        done
-#        # Field counts were equal and all fields matched. We have a Winner!
-#        if [[ $match -eq 1 ]]; then
-#            #  Now we need to check if it is newer than the local.
-#            OnlineVersion=$(echo "${URLArray[$x]}" | sed 's/^.*_\([^_]*\)$/\1/' | cut -d "." -f1)
-#            OnlineYear=$(echo "$OnlineVersion" | cut -d "-" -f1)
-#            OnlineMonth=$(echo "$OnlineVersion" | cut -d "-" -f2)
-#            ZIMYear=$(echo "${ZIMVerArray[$i]}" | cut -d "-" -f1)
-#            ZIMMonth=$(echo "${ZIMVerArray[$i]}" | cut -d "-" -f2)
-#
-#            if [ $VERIFY_LIBRARY -eq 1 ] || [[ $InterruptedDownload -eq 1 ]]; then
-#                if [ "$OnlineYear" -eq "$ZIMYear" ] && [ "$OnlineMonth" -eq "$ZIMMonth" ]; then
-#                    UpdateFound=2
-#                    echo -e "\033[1;32m    ✓ Online Version Found\033[0m"
-#                    DownloadArray+=( "$BaseURL${ZIMRootArray[$i]}/${URLArray[$x]}" )
-#                    PurgeArray+=( "$ZIMPath${ZIMNameArray[$i]}" )
-#                    break # No need to conitnue checking the URLArray.
-#                fi
-#            else
-#                # Check if online Year is older than local Year.
-#                if [ "$OnlineYear" -lt "$ZIMYear" ]; then # Online Year is older, skip.
-#                    continue
-#                # Check if Years are equal, but online Month is older than local Month.
-#                elif [ "$OnlineYear" -eq "$ZIMYear" ] && [ "$OnlineMonth" -le "$ZIMMonth" ]; then # Years are equal, but Month is older, skip.
-#                    continue
-#                elif [ $UpdateFound -eq 0 ]; then # Online is newer than local. Double Winner!
-#                    UpdateFound=1
-#                    echo -e "\033[1;32m    ✓ Update found! --> $OnlineVersion\033[0m"
-#                    DownloadArray+=( "$BaseURL${ZIMRootArray[$i]}/${URLArray[$x]}" )
-#                    PurgeArray+=( "$ZIMPath${ZIMNameArray[$i]}" )
-#                    break # No need to conitnue checking the URLArray.
-#                fi
-#            fi
-#        fi
-#    done
-#    if [[ $UpdateFound -eq 0 ]]; then # No update was found.
-#        if [ $VERIFY_LIBRARY -eq 1 ]; then
-#            echo "    ✗ Online Version Not Found"
-#        else
-#            echo "    ✗ No new update"
-#        fi
-#    fi
-#
-#    echo
+    echo
 done
-
-unset ZimRootCache
 
 # TODO Start handling all the ZIMs
 echo -e "\033[1;33m5. Downloading New ZIM(s)...\033[0m"
 echo
 
 # Let's clear out any possible duplicates
-#CleanDownloadArray=($(printf "%s\n" "${DownloadArray[@]}" | sort -u)) # Sort Array
-#CleanPurgeArray=($(printf "%s\n" "${PurgeArray[@]}" | sort -u))
 
 # Let's Start the download process, but only if we have actual downloads to do.
 if [ $AnyDownloads -eq 1 ]; then
-    for ((z=0; z<${#ZIMNameArray[@]}; z++)); do # Iterate through the download queue.
-        [[ ${DownloadArray[$z]} -eq 0 ]] && continue
+    for ((z=0; z<${#LocalZIMNameArray[@]}; z++)); do # Iterate through the download queue.
+        [[ ${LocalRequiresDownloadArray[$z]} -eq 0 ]] && continue
 
         mirror_search # Let's look for a mirror URL first.
 
@@ -554,13 +368,17 @@ if [ $AnyDownloads -eq 1 ]; then
             [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
         fi
 
-        FileName=${RemoteFiles[${ZIMRootArray[$z]}]} # Extract New/Updated ZIM file name.
-        FilePath=$ZIMPath$FileName # Set destination path with file name
-        LockFilePath="$ZIMPath.~lock.$FileName" # Set destination path with file name
+        OldZIM=${LocalZIMNameArray[$z]}
+        OldZIMPath=$ZIMPath$OldZIM
+        NewZIM=${RemoteFiles[${LocalZIMRemoteIndexArray[$z]}]}
+        NewZIMPath=$ZIMPath$NewZIM
+
+        FilePath=$ZIMPath$NewZIM # Set destination path with file name
+        LockFilePath="$ZIMPath.~lock.$NewZIM" # Set destination path with file name
 
         RequiresDownload=0
 
-        if [ $VERIFY_LIBRARY -eq 0 ] && [[ -f $FilePath ]] && ! [[ -f $LockFilePath ]]; then # New ZIM already found, and no interruptions, we don't need to download it.
+        if [ $VERIFY_LIBRARY -eq 0 ] && [[ -f $NewZIM ]] && ! [[ -f $LockFilePath ]]; then # New ZIM already found, and no interruptions, we don't need to download it.
             [[ $DEBUG -eq 0 ]] && echo -e "\033[0;32m  ✓ Status : ZIM already exists on disk. Skipping download.\033[0m"
             [[ $DEBUG -eq 1 ]] && echo -e "\033[0;32m  ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.\033[0m"
             echo
@@ -603,17 +421,17 @@ if [ $AnyDownloads -eq 1 ]; then
                 RequiresDownload=1
             else
                 # actually verify the file
-                echo -e "\033[1;34m  Calculating checksum for : $FileName\033[0m"
-                echo "  Calculating checksum for : $FileName" >> download.log
-                echo "$ExpectedHash $FilePath" > "$FilePath.sha256"
+                echo -e "\033[1;34m  Calculating checksum for : $OldZIM\033[0m"
+                echo "  Calculating checksum for : $OldZIM" >> download.log
+                echo "$ExpectedHash $OldZIMPath" > "$OldZIMPath.sha256"
                 if [[ ${#ExpectedHash} -ne 64 ]]; then
                     echo "    This hash doesn't look quite right...skipping"
-                elif ! sha256sum --status -c "$FilePath.sha256"; then
+                elif ! sha256sum --status -c "$OldZIMPath.sha256"; then
                     RequiresDownload=1
                     if [[ $DEBUG -eq 0 ]]; then
                         echo -e "\033[1;31m  ✗ Status : Checksum failed, removing corrupt file\033[0m"
                         echo "  ✗ Status : Checksum failed, removing corrupt file" >> download.log
-                        rm "$FilePath"
+                        rm "$OldZIMPath"
                     else
                         echo -e "\033[1;31m  ✗ Status : *** Simulated *** Checksum failed, removing corrupt file ($FilePath)\033[0m"
                     fi
@@ -626,12 +444,12 @@ if [ $AnyDownloads -eq 1 ]; then
                     [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >> download.log
                     [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >> download.log
 
-                    rm "$FilePath.sha256"
+                    rm "$OldZIMPath.sha256"
 
                     echo
                     continue
                 fi
-                rm "$FilePath.sha256"
+                rm "$OldZIMPath.sha256"
             fi
         fi
 
@@ -639,7 +457,7 @@ if [ $AnyDownloads -eq 1 ]; then
         if [[ $RequiresDownload -eq 1 ]]; then
             echo >> download.log
             echo "=======================================================================" >> download.log
-            echo "File : $FileName" >> download.log
+            echo "File : $NewZIM" >> download.log
             [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >> download.log
             [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >> download.log
             echo >> download.log
@@ -661,13 +479,14 @@ if [ $AnyDownloads -eq 1 ]; then
         fi
 
         if [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
-            echo -e "\033[1;34m  Calculating checksum for : $FileName\033[0m"
-            echo "$ExpectedHash $FilePath" > "$FilePath.sha256"
+            echo -e "\033[1;34m  Calculating checksum for : $NewZIMPath\033[0m"
+            echo "$ExpectedHash $NewZIMPath" > "$NewZIMPath.sha256"
             if [[ ${#ExpectedHash} -ne 64 ]]; then
                 echo "    This hash doesn't look quite right...skipping"
-            elif [[ $DEBUG -eq 0 ]] && ! sha256sum --status -c "$FilePath.sha256"; then
+            elif [[ $DEBUG -eq 0 ]] && ! sha256sum --status -c "$NewZIMPath.sha256"; then
                 echo -e "\033[0;31m  ✗ Checksum failed, removing corrupt file\033[0m"
-                rm "$FilePath"
+                rm "$NewZIMPath"
+                touch "$NewZIMPath"
                 DownloadFailed=1
             else
                 if [[ $DEBUG -eq 0 ]]; then
@@ -676,7 +495,7 @@ if [ $AnyDownloads -eq 1 ]; then
                   echo -e "\033[0;32m  ✓ *** Simulated *** Checksum passed\033[0m"
                 fi
             fi
-            rm "$FilePath.sha256"
+            rm "$NewZIMPath.sha256"
             rm "$LockFilePath"
             echo
         fi
@@ -695,34 +514,31 @@ if [ $AnyDownloads -eq 1 ]; then
 
         ########################################
 
-        OldZIM=${ZIMNameArray[$z]}
-        NewZIM=$FileName
-
         echo -e "\033[0;34m  Old : $OldZIM\033[0m"
         echo "  Old : $OldZIM" >> download.log
         echo -e "\033[1;34m  New : $NewZIM\033[0m"
         echo "  New : $NewZIM" >> download.log
         # Check for the new ZIM on disk.
-        if [[ -f $NewZIM ]]; then # New ZIM found
+        if [[ -f $NewZIMPath ]]; then # New ZIM found
             if [[ $DEBUG -eq 0 ]]; then
                 echo -e "\033[1;32m  ✓ Status : New ZIM verified. Old ZIM purged.\033[0m"
                 echo "  ✓ Status : New ZIM verified. Old ZIM purged." >> download.log
-                [[ -f "$OldZIM" ]] && rm "$OldZIM" # Purge old ZIM
+                [[ -f "$OldZIMPath" ]] && rm "$OldZIMPath" # Purge old ZIM
             else
                 echo -e "\033[1;32m  ✓ Status : *** Simulated ***\033[0m"
                 echo "  ✓ Status : *** Simulated ***" >> download.log
             fi
         else # New ZIM not found. Something went wrong, so we will skip this purge.
             if [[ $DEBUG -eq 0 ]]; then
-                echo -e "\033[0;31m  ✗ Status : New ZIM failed verification. Old ZIM purge skipped.\033[0m"
-                echo "  ✗ Status : New ZIM failed verification. Old ZIM purge skipped." >> download.log
+                echo -e "\033[0;31m  ✗ Status : New ZIM failed verification. Old ZIM not purged.\033[0m"
+                echo "  ✗ Status : New ZIM failed verification. Old ZIM not purged." >> download.log
             else
                 if [[ $RequiresDownload -eq 0 ]]; then
                     echo -e "\033[1;32m  ✓ Status : *** Simulated ***\033[0m"
                     echo "  ✓ Status : *** Simulated ***" >> download.log
                 else
                     echo -e "\033[1;33m  ✗ Status : *** Simulated *** Zim was skipped, and will not be purged\033[0m"
-                    echo "  ✗ Status : *** Simulated *** Zim purge skipped" >> download.log
+                    echo "  ✗ Status : *** Simulated *** Zim not purged" >> download.log
                 fi
             fi
         fi
@@ -738,5 +554,5 @@ else
     echo -e "\033[0;32m    ✓ Download: Nothing to download.\033[0m"
     echo
 fi
-unset CleanDownloadArray # Housekeeping
-#unset DownloadArray     # Housekeeping, I know, but we can't do this here - we need it to verify new ZIM(s) during the purge function.
+
+#unset LocalRequiresDownloadArray     # Housekeeping, I know, but we can't do this here - we need it to verify new ZIM(s) during the purge function.
