@@ -554,7 +554,7 @@ if [ $AnyDownloads -eq 1 ]; then
             [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
         fi
 
-        FileName=${RemoteFiles[$z]} # Extract New/Updated ZIM file name.
+        FileName=${RemoteFiles[${ZIMRootArray[$z]}]} # Extract New/Updated ZIM file name.
         FilePath=$ZIMPath$FileName # Set destination path with file name
         LockFilePath="$ZIMPath.~lock.$FileName" # Set destination path with file name
 
@@ -625,6 +625,8 @@ if [ $AnyDownloads -eq 1 ]; then
 
                     [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >> download.log
                     [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >> download.log
+
+                    rm "$FilePath.sha256"
 
                     echo
                     continue
