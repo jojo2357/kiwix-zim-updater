@@ -2,8 +2,23 @@
 
 VER="3.0"
 
-# Set Script Arrays
-LocalZIMArray=(); LocalZIMNameArray=(); LocalZIMRemoteIndexArray=(); LocalRequiresDownloadArray=();
+# This array will contain all of the local zims, with the file extension
+LocalZIMArray=();
+# This array will contain all of the local zims, without the file extension
+LocalZIMNameArray=();
+# This array will map the local zim to the index in the remote arrays that contains the same base file name
+LocalZIMRemoteIndexArray=();
+# This array is a boolean array which remembers if a given local zim shoud be processed in the download loop
+LocalRequiresDownloadArray=();
+
+# This array stores the file names that kiwix has to offer, with .zim extensions
+RemoteFiles=();
+# Ditto, without the YYYY-MM (note a trailing _)
+Basenames=();
+# Contains the absolute path to this file, from /zims/
+RemotePaths=();
+# Contains the folder this file is in relative to /zims/
+RemoteCategory=();
 
 # Set Script Strings
 SCRIPT="$(readlink -f "$0")"
@@ -21,7 +36,7 @@ VERIFY_LIBRARY=0
 BaseURL="https://download.kiwix.org/zim/"
 ZIMPath=""
 
-# master_scrape - Scrape "download.kiwix.org/zim/" for roots (directories) and zims (files)
+# This will ask the api what files it has to offer and store them in arrays
 master_scrape() {
     unset RemoteFiles
     unset Basenames
@@ -160,7 +175,6 @@ flags() {
     master_scrape
 
     echo
-    echo
 
     # Populate ZIM arrays from found ZIM(s)
     echo -e "\033[1;34m  -Parsing ZIM(s)...\033[0m"
@@ -196,12 +210,20 @@ flags() {
 mirror_search() {
     IsMirror=0
     DownloadURL=""
-    RemotePath=${RemotePaths[$z]}
-    # Silently fetch (via wget) the associated meta4 xml and extract the mirror URL marked priority="1"
-    MetaInfo=$(wget -q -O - "$BaseURL$RemotePath.meta4?country=$COUNTRY_CODE")
-    ExpectedSize=$(echo "$MetaInfo" | grep '<size>' | grep -Po '\d+')
-    ExpectedHash=$(echo "$MetaInfo" | grep '<hash type="sha-256">' | grep -Poi '(?<="sha-256">)[a-f\d]{64}(?=<)')
-    RawMirror=$(echo "$MetaInfo" | grep 'priority="1"' | grep -Po 'https?://[^ ")]+(?=</url>)')
+    RemotePath="${RemotePaths[${LocalZIMRemoteIndexArray[$z]}]}"
+    ExpectedSize="${FileSizes[${LocalZIMRemoteIndexArray[$z]}]}"
+
+    # If we need the checksum, we need a link  and the hash, which we can get both by using .meta4, otherwise we only need
+#    if [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
+        # Silently fetch (via wget) the associated meta4 xml and extract the mirror URL marked priority="1"
+        MetaInfo=$(wget -q -O - "$BaseURL$RemotePath.meta4?country=$COUNTRY_CODE")
+#          ExpectedSize=$(echo "$MetaInfo" | grep '<size>' | grep -Po '\d+')
+        ExpectedHash=$(echo "$MetaInfo" | grep '<hash type="sha-256">' | grep -Poi '(?<="sha-256">)[a-f\d]{64}(?=<)')
+        RawMirror=$(echo "$MetaInfo" | grep 'priority="1"' | grep -Po 'https?://[^ ")]+(?=</url>)')
+#    else
+#        RawMirror=$(wget -q -O - "$BaseURL$RemotePath.mirrorlist?country=$COUNTRY_CODE" | grep -i 'prio 1' | grep -Po '(?<=>)https?://[^ ")]+(?=</a>)')
+#    fi
+
     # Check that we actually got a URL (this could probably be done better). If no mirror URL, default back to direct URL.
     if [[ $RawMirror == *"http"* ]]; then # Mirror URL found
         DownloadURL="$RawMirror" # Set the mirror URL as our download URL
@@ -314,7 +336,7 @@ for ((i=0; i<${#LocalZIMNameArray[@]}; i++)); do
     [[ $RemoteIndex -eq -1 ]] && LocalRequiresDownloadArray+=( 0 ) && continue
     FileName=${LocalZIMNameArray[$i]}
     echo -e "\033[1;34m  - $FileName:\033[0m"
-    [[ -f "$ZIMPath.~lock.$FileName" ]] && echo -e "\033[0;33m    Incomplete download detected\n\033[1;32m    ✓ Online Version Found\033[0m" && LocalRequiresDownloadArray+=( 1 ) && AnyDownloads=1 && continue
+    [[ -f "$ZIMPath.~lock.$FileName" ]] && echo -e "\033[0;33m    Incomplete download detected\n\033[1;32m    ✓ Online Version Found\033[0m\n" && LocalRequiresDownloadArray+=( 1 ) && AnyDownloads=1 && continue
 
     MatchingSize=${FileSizes[$RemoteIndex]}
     MatchingFileName=${RemoteFiles[$RemoteIndex]}
@@ -362,11 +384,6 @@ if [ $AnyDownloads -eq 1 ]; then
         [[ ${LocalRequiresDownloadArray[$z]} -eq 0 ]] && continue
 
         mirror_search # Let's look for a mirror URL first.
-
-        if [ $VERIFY_LIBRARY -eq 0 ]; then
-            [[ $IsMirror -eq 0 ]] && echo -e "\033[1;34m  Download (direct) : $DownloadURL\033[0m"
-            [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
-        fi
 
         OldZIM=${LocalZIMNameArray[$z]}
         OldZIMPath=$ZIMPath$OldZIM
@@ -416,8 +433,8 @@ if [ $AnyDownloads -eq 1 ]; then
                 echo "Incomplete download detected" >> download.log
                 echo -e "\033[0;33m  Status: Incomplete download detected, resuming\033[0m"
 
-                [[ $IsMirror -eq 0 ]] && echo -e "\033[1;34m  Download (direct) : $DownloadURL\033[0m"
-                [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
+#                [[ $IsMirror -eq 0 ]] && echo -e "\033[1;34m  Download (direct) : $DownloadURL\033[0m"
+#                [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
                 RequiresDownload=1
             else
                 # actually verify the file
@@ -455,6 +472,8 @@ if [ $AnyDownloads -eq 1 ]; then
 
         # Here is where we actually download the files and log to the download.log file.
         if [[ $RequiresDownload -eq 1 ]]; then
+            [[ $IsMirror -eq 0 ]] && echo -e "\033[1;34m  Download (direct) : $DownloadURL\033[0m"
+            [[ $IsMirror -eq 1 ]] && echo -e "\033[1;34m  Download (mirror) : $DownloadURL\033[0m"
             echo >> download.log
             echo "=======================================================================" >> download.log
             echo "File : $NewZIM" >> download.log
