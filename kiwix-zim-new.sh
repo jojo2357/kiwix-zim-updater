@@ -432,7 +432,6 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
   echo
 done
 
-# TODO Start handling all the ZIMs
 echo -e "\033[1;33m4. Downloading New ZIM(s)...\033[0m"
 echo
 
@@ -448,7 +447,6 @@ if [ $AnyDownloads -eq 1 ]; then
 
     echo -e "\033[1;34m  Processing $OldZIM\033[0m"
 
-    #todo figure out what to do to differentiate 2 and 3
     if [[ ${LocalRequiresDownloadArray[$z]} -eq 3 ]]; then
       ExpectedHash=$(grep -ioP "^[0-9a-f]{64}" <"$OldZIMPath.sha256")
 
