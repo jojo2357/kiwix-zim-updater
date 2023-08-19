@@ -36,11 +36,6 @@ VERIFY_LIBRARY=0
 BaseURL="https://download.kiwix.org/zim/"
 ZIMPath=""
 
-printToLogAndTerminal() {
-  echo -e "$1"
-  echo -e "$1" >> download.log
-}
-
 # This will ask the api what files it has to offer and store them in arrays
 master_scrape() {
   unset RemoteFiles
@@ -65,10 +60,12 @@ master_scrape() {
   unset IFS
 
   if [[ ${#RemoteFiles[@]} -eq 0 ]]; then
-    printToLogAndTerminal "\033[0;31m    ✗  Could not find any remote files, exiting"
+    echo -e "\033[0;31m    ✗  Could not find any remote files, exiting\033[0m"
+    echo "✗  Could not find any remote files, exiting" >> download.log
     exit 0
   else
-    printToLogAndTerminal "\033[1;32m    ✓ Found ${#RemoteFiles[@]} files online"
+    echo -e "\033[1;32m    ✓ Found ${#RemoteFiles[@]} files online"
+    echo "✓ Found ${#RemoteFiles[@]} files online" >> download.log
   fi
 
   # Housekeeping...
@@ -78,23 +75,28 @@ master_scrape() {
 
 # self_update - Script Self-Update Function
 self_update() {
-  printToLogAndTerminal "\033[1;33m1. Checking for Script Updates...\033[0m"
+  echo -e "\033[1;33m1. Checking for Script Updates...\033[0m"
+  echo  "1. Checking for Script Updates..." >> download.log
   echo
   # Check if script path is a git clone.
   #   If true, then check for update.
   #   If false, skip self-update check/funciton.
   if [ $SKIP_UPDATE -eq 1 ]; then
-    printToLogAndTerminal "\033[0;33m   Check Skipped\033[0m"
+    echo -e "\033[0;33m   Check Skipped\033[0m"
+    echo "Check Skipped" >> download.log
   elif [[ -d "$SCRIPTPATH/.git" ]]; then
-    printToLogAndTerminal "\033[1;32m   ✓ Git Clone Detected: Checking Script Version...\033[0m"
+    echo -e "\033[1;32m   ✓ Git Clone Detected: Checking Script Version...\033[0m"
+    echo "✓ Git Clone Detected: Checking Script Version..." >> download.log
     cd "$SCRIPTPATH" || exit 1
     [[ $(timeout 1s git rev-parse --abbrev-ref HEAD) != "$BRANCH" ]] && echo -e "\033[1;33m     You appear to be on a different branch so I will assume you are developing and do not want an update\033[0m" && echo && return
     timeout 1s git fetch --quiet
     timeout 1s git diff --quiet --exit-code "origin/$BRANCH" "$SCRIPTFILE"
     [ $? -eq 1 ] && {
-      printToLogAndTerminal "\033[0;31m   ✗ Version: Mismatched\033[0m"
+      echo -e "\033[0;31m   ✗ Version: Mismatched\033[0m"
+      echo "✗ Version: Mismatched" >> download.log
       echo
-      printToLogAndTerminal "\033[1;33m1a. Fetching Update...\033[0m"
+      echo -e "\033[1;33m1a. Fetching Update...\033[0m"
+      echo "1a. Fetching Update..." >> download.log
       echo
       if [ -n "$(git status --porcelain)" ]; then
         git stash push -m 'local changes stashed before self update' --quiet
@@ -102,7 +104,8 @@ self_update() {
       git pull --force --quiet
       git checkout $BRANCH --quiet
       git pull --force --quiet
-      printToLogAndTerminal "\033[1;32m   ✓ Update Complete. Running New Version. Standby...\033[0m"
+      echo -e "\033[1;32m   ✓ Update Complete. Running New Version. Standby...\033[0m"
+      echo "✓ Update Complete. Running New Version. Standby..." >> download.log
       sleep 3
       cd - >/dev/null || exit 1
 
@@ -146,9 +149,11 @@ usage_example() {
 
 # flags - Flag and ZIM Processing Functions
 flags() {
-  printToLogAndTerminal "\033[1;33m2. Preprocessing...\033[0m"
+  echo -e "\033[1;33m2. Preprocessing...\033[0m"
+  echo "2. Preprocessing..." >> download.log
   echo
-  printToLogAndTerminal "\033[1;34m  -Validating ZIM directory...\033[0m"
+  echo -e "\033[1;34m  -Validating ZIM directory...\033[0m"
+  echo "Validating ZIM directory..." >> download.log
 
   # Let's identify which argument is the ZIM directory path and if it's an actual directory.
   if [[ -d ${1} ]]; then
@@ -156,15 +161,18 @@ flags() {
       ZIMPath=$1
     else
       ZIMPath=$1
-      printToLogAndTerminal "\033[0;31m  ✗ Cannot write to '${1}', continuing in dry-run\033[0m"
+      echo -e "\033[0;31m  ✗ Cannot write to '${1}', continuing in dry-run\033[0m"
+      echo "✗ Cannot write to '${1}', continuing in dry-run" >> download.log
       echo
       DEBUG=1
     fi
   else # Um... no ZIM directory path provided? Okay, let's show the usage and exit.
     if [[ -z ${1} ]]; then
-      printToLogAndTerminal "\033[0;31m  ✗ Kiwix ZIM Directory not provided\033[0m"
+      echo -e "\033[0;31m  ✗ Kiwix ZIM Directory not provided\033[0m"
+      echo "✗ Kiwix ZIM Directory not provided" >> download.log
     else
-      printToLogAndTerminal "\033[0;31m  ✗ '$1' is not a directory\033[0m"
+      echo -e "\033[0;31m  ✗ '$1' is not a directory\033[0m"
+      echo "✗ '$1' is not a directory" >> download.log
     fi
     echo
     usage_example
@@ -487,7 +495,7 @@ if [ $AnyDownloads -eq 1 ]; then
     else
       # lockfile implies an incomplete download
       if [[ -f $LockFilePath ]]; then
-        echo "Incomplete download detected" >>download.log
+        echo "Incomplete download detected, resuming" >>download.log
         echo -e "\033[0;33m    Status: Incomplete download detected, resuming\033[0m"
 
         #                [[ $IsMirror -eq 0 ]] && echo -e "\033[1;34m  Download (direct) : $DownloadURL\033[0m"
@@ -496,18 +504,18 @@ if [ $AnyDownloads -eq 1 ]; then
       else
         # actually verify the file
         echo -e "\033[0;34m    Calculating checksum for : $OldZIM\033[0m"
-        echo "    Calculating checksum for : $OldZIM" >>download.log
+        echo "Calculating checksum for : $OldZIM" >>download.log
         [[ ${LocalRequiresDownloadArray[$z]} -ne 2 ]] && echo "$ExpectedHash $OldZIM" >"$OldZIMPath.sha256"
         if [[ ${LocalRequiresDownloadArray[$z]} -ne 2 ]] && [[ $(du -b "$OldZIMPath" | grep -ioP "^\d+") -ne "$ExpectedSize" ]]; then
           RequiresDownload=1
           if [[ $DEBUG -eq 0 ]]; then
             if [[ $SKIP_PURGE -eq 0 ]]; then
               echo -e "\033[1;31m    ✗ Status : File size verification failed, removing corrupt file\033[0m"
-              echo "    ✗ Status : File size verification failed, removing corrupt file" >>download.log
+              echo "✗ Status : File size verification failed, removing corrupt file" >>download.log
               rm "$OldZIMPath"
             else
               echo -e "\033[1;31m    ✗ Status : File size verification failed but purge skipped\033[0m"
-              echo "    ✗ Status : File size verification failed but purge skipped" >>download.log
+              echo "✗ Status : File size verification failed but purge skipped" >>download.log
             fi
           else
             [[ $SKIP_PURGE -eq 0 ]] && echo -e "\033[1;31m    ✗ Status : *** Simulated *** File size verification failed, removing corrupt file ($FilePath)\033[0m"
@@ -523,12 +531,12 @@ if [ $AnyDownloads -eq 1 ]; then
           if [[ $DEBUG -eq 0 ]]; then
             if [[ $SKIP_PURGE -eq 0 ]]; then
               echo -e "\033[1;31m    ✗ Status : Checksum failed, removing corrupt file\033[0m"
-              echo "    ✗ Status : Checksum failed, removing corrupt file" >>download.log
+              echo "✗ Status : Checksum failed, removing corrupt file" >>download.log
               rm "$OldZIMPath"
               rm "$OldZIMPath.sha256" 2>/dev/null
             else
               echo -e "\033[1;31m    ✗ Status : Checksum failed but purge was skipped\033[0m"
-              echo "    ✗ Status : Checksum failed but purge was skipped" >>download.log
+              echo "✗ Status : Checksum failed but purge was skipped" >>download.log
               echo
               continue
             fi
@@ -540,7 +548,7 @@ if [ $AnyDownloads -eq 1 ]; then
           echo
         else
           echo -e "\033[1;32m    ✓ Status : Checksum passed\033[0m"
-          echo "    ✓ Status : Checksum passed" >>download.log
+          echo "✓ Status : Checksum passed" >>download.log
 
           [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >>download.log
           [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >>download.log
@@ -555,6 +563,9 @@ if [ $AnyDownloads -eq 1 ]; then
       fi
     fi
 
+    echo >>download.log
+    [[ $DEBUG -eq 0 ]] && echo "Start : $(date -u)" >>download.log
+    [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >>download.log
     # Here is where we actually download the files and log to the download.log file.
     if [[ $RequiresDownload -eq 1 ]]; then
       [[ $IsMirror -eq 0 ]] && echo -e "\033[0;34m    Download (direct) : $DownloadURL\033[0m"
@@ -565,20 +576,18 @@ if [ $AnyDownloads -eq 1 ]; then
       [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >>download.log
       [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >>download.log
       echo >>download.log
-      [[ $DEBUG -eq 0 ]] && echo "Start : $(date -u)" >>download.log
-      [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >>download.log
-      echo >>download.log
+
 
       # Before we actually download, let's just check to see that it isn't already in the folder.
       if [[ -f "$LockFilePath" ]]; then
-        [[ $DEBUG -eq 0 ]] && wget -q --show-progress -c -O "$FilePath" "$DownloadURL" 1>>download.log && echo # Download new ZIM
-        [[ $DEBUG -eq 1 ]] && echo "    Continue Download : $FilePath" >>download.log
+        [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+        [[ $DEBUG -eq 1 ]] && echo "Continue Download : $FilePath" >>download.log
       elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
-        [[ $DEBUG -eq 1 ]] && echo "    Download : New ZIM already exists on disk. Skipping download." >>download.log
+        [[ $DEBUG -eq 1 ]] && echo "Download : New ZIM already exists on disk. Skipping download." >>download.log
       else # New ZIM not found, so we'll go ahead and download it.
         [[ $DEBUG -eq 0 ]] && touch "$LockFilePath"
-        [[ $DEBUG -eq 0 ]] && wget -q --show-progress -c -O "$FilePath" "$DownloadURL" 1>>download.log && echo # Download new ZIM
-        [[ $DEBUG -eq 1 ]] && echo "    Download : $FilePath" >>download.log
+        [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+        [[ $DEBUG -eq 1 ]] && echo "Download : $FilePath" >>download.log
       fi
     fi
 
@@ -588,7 +597,7 @@ if [ $AnyDownloads -eq 1 ]; then
       if [[ $(du -b "$NewZIMPath" 2>/dev/null | grep -ioP "^\d+") -ne "$ExpectedSize" ]]; then
         if [[ $DEBUG -eq 0 ]]; then
           echo -e "\033[1;31m    ✗ Status : File size verification failed, removing corrupt file\033[0m"
-          echo "    ✗ Status : File size verification failed, removing corrupt file" >>download.log
+          echo "✗ Status : File size verification failed, removing corrupt file" >>download.log
           rm "$NewZIMPath"
         else
           echo -e "\033[1;32m    ✓ *** Simulated *** Checksum passed\033[0m"
@@ -627,36 +636,36 @@ if [ $AnyDownloads -eq 1 ]; then
     ########################################
 
     echo -e "\033[0;34m    Old : $OldZIM\033[0m"
-    echo "    Old : $OldZIM" >>download.log
+    echo "Old : $OldZIM" >>download.log
     echo -e "\033[1;34m    New : $NewZIM\033[0m"
-    echo "    New : $NewZIM" >>download.log
+    echo "New : $NewZIM" >>download.log
     # Check for the new ZIM on disk.
     if [[ -f "$NewZIMPath" ]]; then # New ZIM found
       if [[ $DEBUG -eq 0 ]]; then
         if [[ "$OldZIMPath" == "$NewZIMPath" ]]; then
           echo -e "\033[1;32m    ✓ Status : New ZIM verified.\033[0m"
-          echo "    ✓ Status : New ZIM verified." >>download.log
+          echo "✓ Status : New ZIM verified." >>download.log
           #                    rm "$OldZIMPath.sha256" 2>/dev/null # Purge old ZIM
         else
           echo -e "\033[1;32m    ✓ Status : New ZIM verified. Old ZIM purged.\033[0m"
-          echo "    ✓ Status : New ZIM verified. Old ZIM purged." >>download.log
+          echo "✓ Status : New ZIM verified. Old ZIM purged." >>download.log
           [[ -f "$OldZIMPath" ]] && rm "$OldZIMPath" && rm "$OldZIMPath.sha256" 2>/dev/null # Purge old ZIM
         fi
       else
         echo -e "\033[1;32m    ✓ Status : *** Simulated ***\033[0m"
-        echo "    ✓ Status : *** Simulated ***" >>download.log
+        echo "✓ Status : *** Simulated ***" >>download.log
       fi
     else # New ZIM not found. Something went wrong, so we will skip this purge.
       if [[ $DEBUG -eq 0 ]]; then
         echo -e "\033[1;31m    ✗ Status : New ZIM failed verification. Old ZIM not purged.\033[0m"
-        echo "    ✗ Status : New ZIM failed verification. Old ZIM not purged." >>download.log
+        echo "✗ Status : New ZIM failed verification. Old ZIM not purged." >>download.log
       else
         if [[ $RequiresDownload -eq 1 ]]; then
           echo -e "\033[1;32m    ✓ Status : *** Simulated *** New zim exists, old zim purged\033[0m"
-          echo "    ✓ Status : *** Simulated *** New zim exists, old zim purged" >>download.log
+          echo "✓ Status : *** Simulated *** New zim exists, old zim purged" >>download.log
         else
           echo -e "\033[1;33m    ✗ Status : *** Simulated *** Zim was skipped, and will not be purged\033[0m"
-          echo "    ✗ Status : *** Simulated *** Zim not purged" >>download.log
+          echo "✗ Status : *** Simulated *** Zim not purged" >>download.log
         fi
       fi
     fi
@@ -670,6 +679,7 @@ if [ $AnyDownloads -eq 1 ]; then
   done
 else
   echo -e "\033[0;32m    ✓ Download: Nothing to download.\033[0m"
+  echo "✓ Download: Nothing to download." >> download.log
   echo
 fi
 
