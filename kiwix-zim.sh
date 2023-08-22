@@ -10,6 +10,8 @@ LocalZIMNameArray=()
 LocalZIMRemoteIndexArray=()
 # This array is a boolean array which remembers if a given local zim shoud be processed in the download loop
 LocalRequiresDownloadArray=()
+# After updating, this array will be used to store hanging locks and to deal with them
+HangingFileLocks=();
 
 # This array stores the file names that kiwix has to offer, with .zim extensions
 RemoteFiles=()
@@ -56,12 +58,10 @@ master_scrape() {
   fi
 
   if [[ FORCE_FETCH_INDEX -eq 1 ]] || [[ $indexIsValid -eq 0 ]]; then
+    # both write the file timestamp to the index file and save all of the links to RawLibrary
     RawLibrary="$(wget --show-progress -q -O - "https://library.kiwix.org/catalog/v2/entries?count=-1" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
-#    RawLibrary=$(echo "$LibraryIndexText" | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")
 
-#    echo "$(echo $LibraryIndexText | grep -ioP -m 1 "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1)" > kiwix-index
     echo "$RawLibrary" >> kiwix-index
-#    unset LibraryIndexText
   else
     RawLibrary=$(grep -i '<link rel' < kiwix-index)
   fi
@@ -210,6 +210,31 @@ flags() {
   IFS=$'\n' read -r -d '' -a LocalZIMArray < <(ls -1 "$ZIMPath" | grep -iP "\.zim$")
   unset IFS
 
+  for index in "${!LocalZIMArray[@]}" ; do
+    duplicated=0
+    myBasename=$(echo "${LocalZIMArray[$index]}" | grep -ioP "^.*(?=_\d{4}-\d{2}\.zim$)")
+    for scanIndex in "${!LocalZIMArray[@]}"; do
+      if [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$index]}" ]]; then
+        if [[ $index -le $scanIndex ]] || [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$scanIndex]}" ]]; then continue; fi
+      else
+        if [[ $index -ge $scanIndex ]] || [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$scanIndex]}" ]]; then continue; fi
+      fi
+      scanBasename=$(echo "${LocalZIMArray[$scanIndex]}" | grep -ioP "^.*(?=_\d{4}-\d{2}\.zim$)")
+
+      if [[ "$myBasename" == "$scanBasename" ]]; then
+        if [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$index]}" ]]; then
+          echo "Disregarding ${LocalZIMArray[$index]} because it was interrupted by ${LocalZIMArray[$scanIndex]}" >> download.log
+        else
+          echo "Disregarding ${LocalZIMArray[$index]} because it is shadowed by ${LocalZIMArray[$scanIndex]}" >> download.log
+        fi
+        duplicated=1
+        break
+      fi
+    done
+    [[ $duplicated -eq 1 ]] && unset -v 'LocalZIMArray[$index]'
+  done
+  LocalZIMArray=("${LocalZIMArray[@]}")
+
   # Check that ZIM(s) were actually found/loaded.
   if [ ${#LocalZIMArray[@]} -eq 0 ]; then # No ZIM(s) were found in the directory... I guess there's nothing else for us to do, so we'll Exit.
     echo -e "\033[0;31m  ✗ No ZIMs found. Exiting...\033[0m"
@@ -253,7 +278,6 @@ flags() {
 
   echo
   echo -e "\033[0;32m    ${#LocalZIMNameArray[*]} ZIM(s) found.\033[0m"
-  echo
 }
 
 # mirror_search - Find ZIM URL Priority #1 mirror from meta4 Function
@@ -377,6 +401,7 @@ flags "$@"
 
 echo
 echo -e "\033[1;33m3. Processing ZIM(s)...\033[0m"
+echo "3. Processing ZIM(s)..." >> download.log
 echo
 
 AnyDownloads=0
@@ -467,6 +492,7 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
 done
 
 echo -e "\033[1;33m4. Downloading New ZIM(s)...\033[0m"
+echo -e "4. Downloading New ZIM(s)..." >> download.log
 echo
 
 # Let's clear out any possible duplicates
@@ -588,7 +614,6 @@ if [ $AnyDownloads -eq 1 ]; then
         #                rm "$OldZIMPath.sha256"
       fi
     fi
-
     echo >>download.log
     [[ $DEBUG -eq 0 ]] && echo "Start : $(date -u)" >>download.log
     [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >>download.log
@@ -703,10 +728,41 @@ if [ $AnyDownloads -eq 1 ]; then
     [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >>download.log
     [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >>download.log
   done
+
+  if [[ $DEBUG -eq 0 ]]; then
+    IFS=$'\n' HangingFileLocks=("$ZIMPath".~lock.*.zim)
+    unset IFS
+
+    if [[ ${#HangingFileLocks[@]} -gt 0 ]]; then
+      echo -e "\033[1;33m5. Cleaning up...\033[0m"
+      echo "5. Cleaning up..." >> download.log
+      echo
+
+      for ((i = 0; i < ${#HangingFileLocks[@]}; i++)); do
+        baseFileName=$(echo "${HangingFileLocks[$i]}" | grep -ioP "(?<=\.~lock\.).*$")
+        echo -e "  \033[1;31mFound broken lock: ${HangingFileLocks[$i]}\033[0m"
+        echo "Found broken lock: ${HangingFileLocks[$i]}" >> download.log
+        if [[ -f "$ZIMPath$baseFileName" ]]; then
+          echo -e "  \033[1;34mFound abandoned download: $ZIMPath$baseFileName\033[0m"
+          echo -e "Found abandoned download: $ZIMPath$baseFileName" >> download.log
+          rm "$ZIMPath$baseFileName"
+        fi
+        if [[ -f "$ZIMPath$baseFileName.sha256" ]]; then
+          echo -e "  \033[1;34mFound abandoned checksum: $ZIMPath$baseFileName.sha256\033[0m"
+          echo -e "Found abandoned checksum: $ZIMPath$baseFileName.sha256" >> download.log
+          rm "$ZIMPath$baseFileName.sha256"
+        fi
+        rm  "${HangingFileLocks[$i]}"
+        echo
+      done
+    fi
+  fi
 else
   echo -e "\033[0;32m    ✓ Download: Nothing to download.\033[0m"
   echo "✓ Download: Nothing to download." >> download.log
   echo
 fi
+
+
 
 #unset LocalRequiresDownloadArray     # Housekeeping, I know, but we can't do this here - we need it to verify new ZIM(s) during the purge function.
