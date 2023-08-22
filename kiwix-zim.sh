@@ -33,6 +33,7 @@ MIN_SIZE=0
 MAX_SIZE=0
 CALCULATE_CHECKSUM=0
 VERIFY_LIBRARY=0
+FORCE_FETCH_INDEX=0
 BaseURL="https://download.kiwix.org/zim/"
 ZIMPath=""
 
@@ -43,7 +44,27 @@ master_scrape() {
   unset RemotePaths
   unset RemoteCategory
 
-  RawLibrary=$(wget --show-progress -q -O - "https://library.kiwix.org/catalog/v2/entries?count=-1" | grep -i 'application/x-zim')
+  indexIsValid=1
+
+  if [[ ! -f kiwix-index ]]; then
+    indexIsValid=0
+  else
+    indexDate="$(head -1 "kiwix-index")"
+    if [[ "$(date -u -d "$indexDate" +%s)" -lt "$(date -u -d "1 day ago" +%s)" ]]; then
+      indexIsValid=0
+    fi
+  fi
+
+  if [[ FORCE_FETCH_INDEX -eq 1 ]] || [[ $indexIsValid -eq 0 ]]; then
+    RawLibrary="$(wget --show-progress -q -O - "https://library.kiwix.org/catalog/v2/entries?count=-1" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
+#    RawLibrary=$(echo "$LibraryIndexText" | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")
+
+#    echo "$(echo $LibraryIndexText | grep -ioP -m 1 "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1)" > kiwix-index
+    echo "$RawLibrary" >> kiwix-index
+#    unset LibraryIndexText
+  else
+    RawLibrary=$(grep -i '<link rel' < kiwix-index)
+  fi
 
   IFS=$'\n' read -r -d '' -a FileSizes < <(echo "$RawLibrary" | grep -ioP '(?<=length=")\d+(?=")')
   unset IFS
@@ -143,6 +164,7 @@ usage_example() {
   echo '    -x <size>, --max-size      Maximum ZIM Size to be downloaded.'
   echo '                               Specify units include M Mi G Gi, etc. See `man numfmt`'
   echo '    -l <location>, --location  Country Code to prefer mirrors from'
+  echo '    -g, --get-index            Forces using remote index rather than cached index. Cache auto clears after one day'
   echo
   exit 0
 }
@@ -309,6 +331,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -u | --skip-update)
       SKIP_UPDATE=1
+      shift
+      ;;
+    -g | --get-index)
+      FORCE_FETCH_INDEX=1
       shift
       ;;
     *)
