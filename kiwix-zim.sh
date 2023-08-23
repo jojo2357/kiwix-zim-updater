@@ -679,6 +679,7 @@ if [ $AnyDownloads -eq 1 ]; then
     if [[ $DownloadFailed -eq 1 ]] || [[ $SKIP_PURGE -eq 1 ]] || [[ $VERIFY_LIBRARY -eq 1 ]]; then
       [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >>download.log
       [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >>download.log
+      [[ $SKIP_PURGE -eq 1 ]] && [[ $DownloadFailed -ne 0 ]] && rm "$LockFilePath"
       continue
     fi
 
@@ -762,7 +763,3 @@ else
   echo "✓ Download: Nothing to download." >> download.log
   echo
 fi
-
-
-
-#unset LocalRequiresDownloadArray     # Housekeeping, I know, but we can't do this here - we need it to verify new ZIM(s) during the purge function.
