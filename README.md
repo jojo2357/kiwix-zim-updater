@@ -16,7 +16,7 @@ It works for me. Your mileage may vary...no warranty, see [the license](./LICENS
 
 This script will parse a list of all ZIM(s) found in the ZIM directory passed to it. It then checks each ZIM against what is on the `download.kiwix.org` website via the file name Year-Month part.
 
-Any zims with newer versions online will then be replaced with the option to verify the downloaded checksums automatically and to delete the old zim iff the new zim passes inspection
+Any zims with newer versions online will then be replaced by default. There is an option to verify the downloaded checksums automatically, and options to set the maximum and minimum zim size to download. Although default behavior is to purge the old zim if the new zim passes inspection, purging can be disabled if you would like to keep an archive of old zims.
 
 ```text
 Note: Due to the nature of ZIM sizes and internet connection speeds, 
@@ -46,7 +46,7 @@ Bonus: A dry-run/simulation run is not required. If you like to
 
 ### Special Note 2
 
-Now only creates one log file: `downloads.log` for the following reasons:
+Creates `downloads.log` for the following reasons:
 
 1. History of what was done. Just good to have.
 2. Because downloads can take a really long time, if you were to run this script in the background, you'd have no real way of monitoring the status of any downloads it may be running... `download.log` can be monitored for real-time status of any downloads taking place. You could use a very simple `tail -f download.log` to watch those download stats in real-time from outside of the script.
@@ -86,7 +86,7 @@ NOTE: if you are not tracking the `main` branch, the update check will be skippe
   Options:
       -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.
       -f, --verify-library       Verifies that the entire library has the correct checksums as found online.
-                                 For this reason, a file `library.sha256` will be left in your library for running sha256sum manually
+                                 Expected behavior is to create sha256 files during a normal run so this option can be used at a later date without internet
       -d, --disable-dry-run      Dry-Run Override.
                                  *** Caution ***
   

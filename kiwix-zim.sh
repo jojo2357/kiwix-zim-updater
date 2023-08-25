@@ -152,7 +152,7 @@ usage_example() {
   echo 'Options:'
   echo '    -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.'
   echo '    -f, --verify-library       Verifies that the entire library has the correct checksums as found online.'
-  echo '                               For this reason, a file `library.sha256` will be left in your library for running sha256sum manually'
+  echo '                               Expected behavior is to create sha256 files during a normal run so this option can be used at a later date without internet'
   echo '    -d, --disable-dry-run      Dry-Run Override.'
   echo '                               *** Caution ***'
   echo
@@ -695,12 +695,12 @@ if [ $AnyDownloads -eq 1 ]; then
     if [[ -f "$NewZIMPath" ]]; then # New ZIM found
       if [[ $DEBUG -eq 0 ]]; then
         if [[ "$OldZIMPath" == "$NewZIMPath" ]]; then
-          echo -e "\033[1;32m    ✓ Status : New ZIM verified.\033[0m"
-          echo "✓ Status : New ZIM verified." >>download.log
+          echo -e "\033[1;32m    ✓ Status : New ZIM downloaded succesfully.\033[0m"
+          echo "✓ Status : New ZIM downloaded succesfully." >>download.log
           #                    rm "$OldZIMPath.sha256" 2>/dev/null # Purge old ZIM
         else
-          echo -e "\033[1;32m    ✓ Status : New ZIM verified. Old ZIM purged.\033[0m"
-          echo "✓ Status : New ZIM verified. Old ZIM purged." >>download.log
+          echo -e "\033[1;32m    ✓ Status : New ZIM downloaded succesfully. Old ZIM purged.\033[0m"
+          echo "✓ Status : New ZIM downloaded succesfully. Old ZIM purged." >>download.log
           [[ -f "$OldZIMPath" ]] && rm "$OldZIMPath" && rm "$OldZIMPath.sha256" 2>/dev/null # Purge old ZIM
         fi
       else
