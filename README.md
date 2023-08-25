@@ -4,23 +4,19 @@ A script to check `download.kiwix.org` for updates to your local ZIM library.
 
 Just pass this script your ZIM directory and away it goes. *(see Usage below)*
 
-Scripted, tested and used on my Ubuntu server, so it should work for just about all Debian-based systems. It probably works on all Linux systems... I just have no time to test that.
-
-![screenshot](https://github.com/DocDrydenn/kiwix-zim/blob/main/screenshot.png)
+Tested on PopOS! 22.04, and should work out of the box on most debian systems, but I have not tested that.
 
 ## What It Does
 
-I wanted an easy way to ensure my ZIM library was kept updated without actually needing to check every ZIM individually. I looked for a tool to do this, but didn't find anything... so I put on my amature BASH hat and made one.
+I wanted an easy way to ensure my ZIM library was kept updated without actually needing to check every ZIM individually. I looked for a tool to do this, but didn't find anything... so I put on my amateur BASH hat and made one.
 
-I run this script via a scheduled cron job on my Linux server where I store my ZIM library and host the Kiwix server. After it's complete, I follow it up with an automated call to update my `library.xml` for the Kiwix server (Note: this part is not provided via this script). This keeps my ZIM library and Kiwix server updated.
+Some people run this script via a scheduled cron job where they store their ZIM library and host a Kiwix server. <!-- After it's complete, I follow it up with an automated call to update my `library.xml` for the Kiwix server (Note: this part is not provided via this script). This keeps my ZIM library and Kiwix server updated.-->
 
-It works for me. Your miles may vary...
+It works for me. Your mileage may vary...no warranty, see [the license](./LICENSE) for more info
 
 This script will parse a list of all ZIM(s) found in the ZIM directory passed to it. It then checks each ZIM against what is on the `download.kiwix.org` website via the file name Year-Month part.
 
-Any new versions found get queued for direct download (processed via `curl`). Replaced ZIM(s) are then queued for purging (processed via `rm`). *(see Limitations below)*
-
-**UPDATE: As of v1.10, this script will attempt to use a preferred mirror (if available) for all downloads. If a valid mirror cannot be found, this script will default to the direct download from `download.kiwix.org`.**
+Any zims with newer versions online will then be replaced by default. There is an option to verify the downloaded checksums automatically, and options to set the maximum and minimum zim size to download. Although default behavior is to purge the old zim if the new zim passes inspection, purging can be disabled if you would like to keep an archive of old zims.
 
 ```text
 Note: Due to the nature of ZIM sizes and internet connection speeds, 
@@ -31,12 +27,12 @@ Note: Due to the nature of ZIM sizes and internet connection speeds,
       frozen or locked up.
 
       Download status is also logged in real-time for monitoring from
-      outside this script. (see Special Note 2 below)
+      outside this script.
 ```
 
 ### Special Note 1
 
-For data safety reasons, I have coded this script to "dry-run" by default. This means that this script will not downloaded or purge anything, however, it will "go through the motions" and output what it would have actually done, allowing you to review the "effects" before commiting to them.
+For data safety reasons, I have coded this script to "dry-run" by default. This means that this script will not download or purge anything, however, it will "go through the motions" and output what it would have actually done, allowing you to review the "effects" before commiting to them.
 
 Once you are good with the "dry-run" results and wish to commit to them, simply re-run the script like you did the first time, but this time, add the "dry-run" override flag (`-d`) to the end.
 
@@ -50,14 +46,13 @@ Bonus: A dry-run/simulation run is not required. If you like to
 
 ### Special Note 2
 
-Downloads (`download.log`) and Purges (`purge.log`) are now created for two main reasons:
+Creates `downloads.log` for the following reasons:
 
 1. History of what was done. Just good to have.
-2. Because downloads can take a really long time, if you were to run this script in the background, you'd have no real way of monitoring the status of any downloads it may be running... since switching over to `curl`, the `download.log` can be monitored for real-time status of any downloads taking place. You could use a very simple `tail -f download.log` to watch those download stats in real-time from outside of the script.
+2. Because downloads can take a really long time, if you were to run this script in the background, you'd have no real way of monitoring the status of any downloads it may be running... `download.log` can be monitored for real-time status of any downloads taking place. You could use a very simple `tail -f download.log` to watch those download stats in real-time from outside of the script.
 
 ## Limitations
 
-- If you maintain multiple dated versions of the same ZIM (i.e. `xxx_2022-06.zim` and `xxx_2022-07.zim`) this script may not be for you... at least not yet. Give it a dry-run and check the results.
 - This script is only for ZIM(s) hosted by `download.kiwix.org` due to the file naming standard they use. If you have self-made ZIM(s) or ZIM(s) downloaded from somewhere else, they most likely do not use the same naming standards and will not be processed by this script.
 - If you have ZIM(s) from `download.kiwix.org`, but you have changed their file names, this script will treat them like the previous limitation explains.
 - This script does not attempt to update any `library.xml` that may or may not exist/be needed for your install/setup of Kiwix. If needed, you'll need to handle this part on your own.
@@ -65,10 +60,6 @@ Downloads (`download.log`) and Purges (`purge.log`) are now created for two main
 ## Requirements
 
 This script does not need root, however it does need the same rights as your ZIM directory or it won't be able to download and/or purge ZIMs.
-
-This script checks for the below packages. If not found, it will attempt to install them via APT.
-
-- curl
 
 Not checked or installed via script:
 
@@ -83,15 +74,29 @@ git clone https://github.com/DocDrydenn/kiwix-zim.git
 ```
 
 UPDATE: If you decide not to install via a git clone, you can still use this script, however, it will just skip the update check and continue on.
+NOTE: if you are not tracking the `main` branch, the update check will be skipped. So if you do not want to get updates, but like git, just track the commit of your choosing.
 
 ## Usage
 
 ```text
-    Usage: ./kiwix-zim.sh <h|d> /full/path/
-
-    /full/path/       Full path to ZIM directory
-
-    -d or d           Dry-Run Override
-
-    -h or h           Show this usage and exit
+  Usage: ./kiwix-zim.sh <options> /full/path/
+  
+      /full/path/                Full path to ZIM directory
+  
+  Options:
+      -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.
+      -f, --verify-library       Verifies that the entire library has the correct checksums as found online.
+                                 Expected behavior is to create sha256 files during a normal run so this option can be used at a later date without internet
+      -d, --disable-dry-run      Dry-Run Override.
+                                 *** Caution ***
+  
+      -h, --help                 Show this usage and exit.
+      -p, --skip-purge           Skips purging any replaced ZIMs.
+      -u, --skip-update          Skips checking for script updates (very useful for development).
+      -n <size>, --min-size      Minimum ZIM Size to be downloaded.
+                                 Specify units include M Mi G Gi, etc. See `man numfmt`
+      -x <size>, --max-size      Maximum ZIM Size to be downloaded.
+                                 Specify units include M Mi G Gi, etc. See `man numfmt`
+      -l <location>, --location  Country Code to prefer mirrors from
+      -g, --get-index            Forces using remote index rather than cached index. Cache auto clears after one day
 ```
