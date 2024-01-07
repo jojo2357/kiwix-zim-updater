@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="3.0"
+VER="3.1"
 
 # This array will contain all of the local zims, with the file extension
 LocalZIMArray=()
