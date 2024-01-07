@@ -680,6 +680,7 @@ if [ $AnyDownloads -eq 1 ]; then
       [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >>download.log
       [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >>download.log
       [[ $SKIP_PURGE -eq 1 ]] && [[ $DownloadFailed -ne 1 ]] && rm "$LockFilePath"
+      [[ $VERIFY_LIBRARY -eq 1 ]] && [[ $RequiresDownload -eq 1 ]] && rm "$LockFilePath"
       continue
     fi
 
