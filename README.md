@@ -1,10 +1,15 @@
-# kiwix-zim.sh
+# kiwix-zim-updater.sh
 
 A script to check `download.kiwix.org` for updates to your local ZIM library.
 
 Just pass this script your ZIM directory and away it goes. *(see Usage below)*
 
 Tested on PopOS! 22.04, and should work out of the box on most debian systems, but I have not tested that.
+
+# DEPRECATION WARNING
+`kiwix-zim.sh` has been deprecated in favor of the more descriptive `kiwix-zim-updater.sh`. A hard link from `kiwix-zim.sh` to `kiwix-zim-updater.sh` will be maintained on this repo until at least `2025-01-01T00:00:00Z` for compatability with CRON users.
+
+***CALLING `kiwix-zim.sh` WILL RESULT IN AN EXIT CODE OF 2 ON SUCCESSFUL EXECUTION. THIS BEHAVIOR IS EXPECTED. CALL `kiwix-zim-updater.sh` INSTEAD TO GET A 0 EXIT CODE***
 
 ## What It Does
 
@@ -69,8 +74,8 @@ Not checked or installed via script:
 
 This script is self-updating. The self-update routine uses git commands to make the update so this script should be "installed" with the below command.
 
-```text
-git clone https://github.com/DocDrydenn/kiwix-zim.git
+```shell
+git clone https://github.com/jojo2357/kiwix-zim-updater.git
 ```
 
 UPDATE: If you decide not to install via a git clone, you can still use this script, however, it will just skip the update check and continue on.
@@ -79,7 +84,7 @@ NOTE: if you are not tracking the `main` branch, the update check will be skippe
 ## Usage
 
 ```text
-  Usage: ./kiwix-zim.sh <options> /full/path/
+  Usage: ./kiwix-zim-updater.sh <options> /full/path/
   
       /full/path/                Full path to ZIM directory
   
