@@ -156,7 +156,7 @@ self_update() {
 
 # usage_example - Show Usage and Exit
 usage_example() {
-  echo 'Usage: ./kiwix-zim.sh <options> /full/path/'
+  echo 'Usage: ./kiwix-zim-updater.sh <options> /full/path/'
   echo
   echo '    /full/path/                Full path to ZIM directory'
   echo
