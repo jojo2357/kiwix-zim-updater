@@ -64,7 +64,7 @@ master_scrape() {
     indexIsValid=0
   else
     indexDate="$(head -1 "kiwix-index")"
-    if [[ "$(date -u -d "$indexDate" +%s)" -lt "$(date -u -d "1 day ago" +%s)" ]]; then
+    if [[ -z "${indexDate}" ]] || [[ "$(date -u -d "$indexDate" +%s)" -lt "$(date -u -d "1 day ago" +%s)" ]]; then
       indexIsValid=0
     fi
   fi
