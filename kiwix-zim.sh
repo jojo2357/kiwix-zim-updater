@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="3.1"
+VER="3.2"
 
 # This array will contain all of the local zims, with the file extension
 LocalZIMArray=()
@@ -445,6 +445,14 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
   MatchingFullPath=${RemotePaths[$RemoteIndex]}
   MatchingCategory=${RemoteCategory[$RemoteIndex]}
 
+  MatchedDate="$(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')"
+  MatchedYear="$(echo "$MatchedDate" | grep -oP '\d{4}(?=-\d{2})')"
+  MatchedMonth="$(echo "$MatchedDate" | grep -oP '(?<=\d{4}-)\d{2}')"
+
+  LocalDate="$(echo "$FileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')"
+  LocalYear="$(echo "$LocalDate" | grep -oP '\d{4}(?=-\d{2})')"
+  LocalMonth="$(echo "$LocalDate" | grep -oP '(?<=\d{4}-)\d{2}')"
+
   FileTooSmall=0
   [[ $MIN_SIZE -gt 0 ]] && [[ $MatchingSize -lt $MIN_SIZE ]] && FileTooSmall=1
   FileTooLarge=0
@@ -497,10 +505,16 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
         LocalRequiresDownloadArray+=(0)
         [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
         [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
+      elif [[ $MatchedYear -lt $LocalYear ]]; then
+        LocalRequiresDownloadArray+=(0)
+        echo "    ✗ No new update"
+      elif [[ $MatchedYear -eq $LocalYear ]] && [[ $MatchedMonth -le $LocalMonth ]]; then
+        LocalRequiresDownloadArray+=(0)
+        echo "    ✗ No new update"
       else
         LocalRequiresDownloadArray+=(1)
         AnyDownloads=1
-        echo -e "${GREEN_BOLD}    ✓ Update found! --> $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
+        echo -e "${GREEN_BOLD}    ✓ Update found! --> $MatchedDate${CLEAR}"
       fi
     fi
   fi
