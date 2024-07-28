@@ -88,20 +88,27 @@ NOTE: if you are not tracking the `main` branch, the update check will be skippe
   
       /full/path/                Full path to ZIM directory
   
-  Options:
-      -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.
-      -f, --verify-library       Verifies that the entire library has the correct checksums as found online.
-                                 Expected behavior is to create sha256 files during a normal run so this option can be used at a later date without internet
-      -d, --disable-dry-run      Dry-Run Override.
-                                 *** Caution ***
-  
+  Universal Options:
       -h, --help                 Show this usage and exit.
-      -p, --skip-purge           Skips purging any replaced ZIMs.
       -u, --skip-update          Skips checking for script updates (very useful for development).
+      -g, --get-index            Forces using remote index rather than cached index. Cache auto clears after one day
       -n <size>, --min-size      Minimum ZIM Size to be downloaded.
                                  Specify units include M Mi G Gi, etc. See `man numfmt`
       -x <size>, --max-size      Maximum ZIM Size to be downloaded.
                                  Specify units include M Mi G Gi, etc. See `man numfmt`
+      -S, --no-sha               Disables saving the zim checksum for future reference. Does not delete present checksums.
+                                 
+  Action Method Options:
+      -w, --web                  Downloads zims over http(s).
+      -t, --torrent              Downloads `.torrent` files. REQUIRES ADDITIONAL SOFTWARE TO EXECUTE DOWNLOAD.
+      
+      -f, --verify-library       Verifies that the entire library has the correct checksums as found online.
+                                 Expected behavior is to create sha256 files during a normal run so this option can be used at a later date without internet.
+                                 Disable this using -S
+  Web Download Options:
+      -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.
+      -p, --skip-purge           Skips purging any replaced ZIMs.
       -l <location>, --location  Country Code to prefer mirrors from
-      -g, --get-index            Forces using remote index rather than cached index. Cache auto clears after one day
+      -d, --disable-dry-run      Dry-Run Override.
+                                 *** Caution ***         
 ```

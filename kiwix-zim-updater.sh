@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER="3.2"
+VER="3.3"
 
 # This array will contain all of the local zims, with the file extension
 LocalZIMArray=()
@@ -36,8 +36,10 @@ DEBUG=1 # This forces the script to default to "dry-run/simulation mode"
 MIN_SIZE=0
 MAX_SIZE=0
 CALCULATE_CHECKSUM=0
+CHECKSUM_FILES=1
 VERIFY_LIBRARY=0
 FORCE_FETCH_INDEX=0
+DOWNLOAD_METHOD=1 # 1: web 2: torrent
 BaseURL="https://download.kiwix.org/zim/"
 ZIMPath=""
 
@@ -157,25 +159,34 @@ self_update() {
 # usage_example - Show Usage and Exit
 usage_example() {
   echo 'Usage: ./kiwix-zim-updater.sh <options> /full/path/'
-  echo
+  echo ''
   echo '    /full/path/                Full path to ZIM directory'
-  echo
-  echo 'Options:'
-  echo '    -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.'
-  echo '    -f, --verify-library       Verifies that the entire library has the correct checksums as found online.'
-  echo '                               Expected behavior is to create sha256 files during a normal run so this option can be used at a later date without internet'
-  echo '    -d, --disable-dry-run      Dry-Run Override.'
-  echo '                               *** Caution ***'
-  echo
+  echo ''
+  echo 'Universal Options:'
   echo '    -h, --help                 Show this usage and exit.'
-  echo '    -p, --skip-purge           Skips purging any replaced ZIMs.'
   echo '    -u, --skip-update          Skips checking for script updates (very useful for development).'
+  echo '    -g, --get-index            Forces using remote index rather than cached index. Cache auto clears after one day'
   echo '    -n <size>, --min-size      Minimum ZIM Size to be downloaded.'
   echo '                               Specify units include M Mi G Gi, etc. See `man numfmt`'
   echo '    -x <size>, --max-size      Maximum ZIM Size to be downloaded.'
   echo '                               Specify units include M Mi G Gi, etc. See `man numfmt`'
+  echo '    -S, --no-sha               Disables saving the zim checksum for future reference. Does not delete present checksums.'
+  echo '                               '
+  echo 'Action Method Options:'
+  echo '    -w, --web                  Downloads zims over http(s).'
+  echo '    -t, --torrent              Downloads `.torrent` files. REQUIRES ADDITIONAL SOFTWARE TO EXECUTE DOWNLOAD.'
+  echo '    '
+  echo '    -f, --verify-library       Verifies that the entire library has the correct checksums as found online.'
+  echo '                               Expected behavior is to create sha256 files during a normal run so this option can be used at a later date without internet.'
+  echo '                               Disable this using -S'
+  echo ''
+  echo 'Web Download Options:'
+  echo '    -c, --calculate-checksum   Verifies that the downloaded files were not corrupted, but can take a while for large downloads.'
+  echo '    -p, --skip-purge           Skips purging any replaced ZIMs.'
   echo '    -l <location>, --location  Country Code to prefer mirrors from'
-  echo '    -g, --get-index            Forces using remote index rather than cached index. Cache auto clears after one day'
+  echo '    -d, --disable-dry-run      Dry-Run Override.'
+  echo '                               *** Caution ***'
+
   echo
   exit 0
 }
@@ -235,6 +246,8 @@ flags() {
       if [[ "$myBasename" == "$scanBasename" ]]; then
         if [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$index]}" ]]; then
           echo "Disregarding ${LocalZIMArray[$index]} because it was interrupted by ${LocalZIMArray[$scanIndex]}" >> download.log
+        elif [[ -f "${ZIMPath}${LocalZIMArray[$index]}.torrent" ]]; then
+          echo "Disregarding ${LocalZIMArray[$index]} because new torrent exists ${LocalZIMArray[$scanIndex]}" >> download.log
         else
           echo "Disregarding ${LocalZIMArray[$index]} because it is shadowed by ${LocalZIMArray[$scanIndex]}" >> download.log
         fi
@@ -303,6 +316,13 @@ mirror_search() {
   MetaInfo=$(wget -q -O - "$BaseURL$RemotePath.meta4?country=$COUNTRY_CODE")
   ExpectedSize=$(echo "$MetaInfo" | grep '<size>' | grep -Po '\d+')
   ExpectedHash=$(echo "$MetaInfo" | grep '<hash type="sha-256">' | grep -Poi '(?<="sha-256">)[a-f\d]{64}(?=<)')
+
+  # still run the last wget so that the logic is simple for verification.
+  if [[ $DOWNLOAD_METHOD -eq 2 ]]; then
+    DownloadURL="$BaseURL$RemotePath.torrent" # Set the direct download URL as our download URL
+    return
+  fi
+
   RawMirror=$(echo "$MetaInfo" | grep 'priority="1"' | grep -Po 'https?://[^ ")]+(?=</url>)')
 
   # Check that we actually got a URL (this could probably be done better). If no mirror URL, default back to direct URL.
@@ -351,7 +371,7 @@ while [[ $# -gt 0 ]]; do
         COUNTRY_CODE=$1 # convert passed arg to bytes
       else
         COUNTRY_CODE=""
-        echo "Invlaid country code, falling back to default kiwix behavior"
+        echo "Invlaid country code, falling back to default kiwix behavior" >> download.log
       fi
       shift # discard value
       ;;
@@ -372,6 +392,18 @@ while [[ $# -gt 0 ]]; do
       FORCE_FETCH_INDEX=1
       shift
       ;;
+    -w | --web)
+      DOWNLOAD_METHOD=1
+      shift
+      ;;
+    -t | --torrent)
+      DOWNLOAD_METHOD=2
+      shift
+      ;;
+    -S | --no-sha)
+      CHECKSUM_FILES=0
+      shift
+      ;;
     *)
       # We can either parse the arg here, or just tuck it away for safekeeping
       POSITIONAL_ARGS+=("$1") # save positional arg
@@ -383,6 +415,10 @@ done
 set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters that we skipped earlier
 
 clear # Clear screen
+
+if [[ $CALCULATE_CHECKSUM -ne 0 ]] && [[ $DOWNLOAD_METHOD -ne 1 ]]; then
+  echo -e "${RED_BOLD}Calculating Checksum not available with torrenting. Aborting.${CLEAR}"
+fi
 
 # Display Header
 echo "=========================================="
@@ -440,10 +476,13 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
   echo -e "${BLUE_BOLD}  - $FileName:${CLEAR}"
   [[ -f "$ZIMPath.~lock.$FileName" ]] && echo -e "${YELLOW_REGULAR}    Incomplete download detected\n${GREEN_BOLD}    ✓ Online Version Found${CLEAR}\n" && LocalRequiresDownloadArray+=(1) && AnyDownloads=1 && continue
 
+
   MatchingSize=${FileSizes[$RemoteIndex]}
   MatchingFileName=${RemoteFiles[$RemoteIndex]}
   MatchingFullPath=${RemotePaths[$RemoteIndex]}
   MatchingCategory=${RemoteCategory[$RemoteIndex]}
+
+  [[ -f "$ZIMPath$MatchingFileName.torrent" ]] && echo -e "${YELLOW_REGULAR}    Torrent already downloaded\n${GREEN_BOLD}    ✓ Online Version Found${CLEAR}\n" && LocalRequiresDownloadArray+=(0) && continue
 
   MatchedDate="$(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')"
   MatchedYear="$(echo "$MatchedDate" | grep -oP '\d{4}(?=-\d{2})')"
@@ -459,6 +498,7 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
   [[ $MAX_SIZE -gt 0 ]] && [[ $MatchingSize -gt $MAX_SIZE ]] && FileTooLarge=1
   FileSizeAcceptable=0
   [ $FileTooSmall -eq 0 ] && [ $FileTooLarge -eq 0 ] && FileSizeAcceptable=1
+
 
   if [ $VERIFY_LIBRARY -eq 1 ] && [ $FileSizeAcceptable -eq 0 ]; then
     if [ $FileTooSmall -eq 1 ]; then
@@ -553,13 +593,29 @@ if [ $AnyDownloads -eq 1 ]; then
       NewZIMPath=$ZIMPath$NewZIM
     fi
 
+
     FilePath=$ZIMPath$NewZIM              # Set destination path with file name
     LockFilePath="$ZIMPath.~lock.$NewZIM" # Set destination path with file name
+    TorrentFilePath="$ZIMPath$NewZIM.torrent" # Set destination path with file name
 
     RequiresDownload=0
 
     if [ $VERIFY_LIBRARY -eq 0 ]; then
-      if [[ -f $NewZIM ]] && ! [[ -f $LockFilePath ]]; then # New ZIM already found, and no interruptions, we don't need to download it.
+      if [[ $DOWNLOAD_METHOD -eq 2 ]]; then
+        if [[ -f $NewZIM ]]; then
+          [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : ZIM already exists on disk. Skipping download.${CLEAR}"
+          [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.${CLEAR}"
+          echo
+        elif [[ -f $TorrentFilePath ]]; then
+          [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : Torrent already exists on disk. Skipping download.${CLEAR}"
+          [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : *** Simulated ***  Torrent already exists on disk. Skipping download.${CLEAR}"
+          echo
+        else
+          [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : Torrent doesn't exist on disk. Downloading...${CLEAR}"
+          [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : *** Simulated ***  Torrent doesn't exist on disk. Downloading...${CLEAR}"
+          RequiresDownload=1
+        fi
+      elif [[ -f $NewZIM ]] && ! [[ -f $LockFilePath ]]; then # New ZIM already found, and no interruptions, we don't need to download it.
         [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : ZIM already exists on disk. Skipping download.${CLEAR}"
         [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.${CLEAR}"
         echo
@@ -583,6 +639,9 @@ if [ $AnyDownloads -eq 1 ]; then
         #                [[ $IsMirror -eq 0 ]] && echo -e "${BLUE_BOLD}  Download (direct) : $DownloadURL${CLEAR}"
         #                [[ $IsMirror -eq 1 ]] && echo -e "${BLUE_BOLD}  Download (mirror) : $DownloadURL${CLEAR}"
         RequiresDownload=1
+      elif [[ -f $TorrentFilePath ]]; then
+        echo -e "${YELLOW_REGULAR}    Status: Torrent exists, skipping${CLEAR}"
+        echo "Skipping checksum for torrent : $OldZIM. If the download has been completed, please delete the .torrent if you want me to verify the checksum." >>download.log
       else
         # actually verify the file
         echo -e "${BLUE_REGULAR}    Calculating checksum for : $OldZIM${CLEAR}"
@@ -649,26 +708,41 @@ if [ $AnyDownloads -eq 1 ]; then
     [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >>download.log
     # Here is where we actually download the files and log to the download.log file.
     if [[ $RequiresDownload -eq 1 ]]; then
-      [[ $IsMirror -eq 0 ]] && echo -e "${BLUE_REGULAR}    Download (direct) : $DownloadURL${CLEAR}"
-      [[ $IsMirror -eq 1 ]] && echo -e "${BLUE_REGULAR}    Download (mirror) : $DownloadURL${CLEAR}"
-      echo >>download.log
-      echo "=======================================================================" >>download.log
-      echo "File : $NewZIM" >>download.log
-      [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >>download.log
-      [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >>download.log
-      echo >>download.log
+      if [[ $DOWNLOAD_METHOD -eq 2 ]]; then
+        FilePath="$FilePath.torrent"
+        if [[ -f "$LockFilePath" ]]; then
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 1 ]] && echo "Continue Download : $FilePath" >>download.log
+        elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
+          [[ $DEBUG -eq 1 ]] && echo "Download : New Torrent already exists on disk. Skipping download." >>download.log
+        else # New ZIM not found, so we'll go ahead and download it.
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 1 ]] && echo "Download : $FilePath" >>download.log
+        fi
+
+        continue
+      else
+        [[ $IsMirror -eq 0 ]] && echo -e "${BLUE_REGULAR}    Download (direct) : $DownloadURL${CLEAR}"
+        [[ $IsMirror -eq 1 ]] && echo -e "${BLUE_REGULAR}    Download (mirror) : $DownloadURL${CLEAR}"
+        echo >>download.log
+        echo "=======================================================================" >>download.log
+        echo "File : $NewZIM" >>download.log
+        [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >>download.log
+        [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >>download.log
+        echo >>download.log
 
 
-      # Before we actually download, let's just check to see that it isn't already in the folder.
-      if [[ -f "$LockFilePath" ]]; then
-        [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
-        [[ $DEBUG -eq 1 ]] && echo "Continue Download : $FilePath" >>download.log
-      elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
-        [[ $DEBUG -eq 1 ]] && echo "Download : New ZIM already exists on disk. Skipping download." >>download.log
-      else # New ZIM not found, so we'll go ahead and download it.
-        [[ $DEBUG -eq 0 ]] && touch "$LockFilePath"
-        [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
-        [[ $DEBUG -eq 1 ]] && echo "Download : $FilePath" >>download.log
+        # Before we actually download, let's just check to see that it isn't already in the folder.
+        if [[ -f "$LockFilePath" ]]; then
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 1 ]] && echo "Continue Download : $FilePath" >>download.log
+        elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
+          [[ $DEBUG -eq 1 ]] && echo "Download : New ZIM already exists on disk. Skipping download." >>download.log
+        else # New ZIM not found, so we'll go ahead and download it.
+          [[ $DEBUG -eq 0 ]] && touch "$LockFilePath"
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 1 ]] && echo "Download : $FilePath" >>download.log
+        fi
       fi
     fi
 
