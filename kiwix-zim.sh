@@ -482,7 +482,7 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
   MatchingFullPath=${RemotePaths[$RemoteIndex]}
   MatchingCategory=${RemoteCategory[$RemoteIndex]}
 
-  [[ -f "$ZIMPath$MatchingFileName.torrent" ]] && echo -e "${YELLOW_REGULAR}    Torrent already downloaded\n${GREEN_BOLD}    ✓ Online Version Found${CLEAR}\n" && LocalRequiresDownloadArray+=(0) && continue
+  [[ -f "$ZIMPath$MatchingFileName.torrent" ]] && ! [[ -f "$ZIMPath$MatchingFileName" ]] && echo -e "${YELLOW_REGULAR}    Torrent already downloaded\n${GREEN_BOLD}    ✓ Online Version Found${CLEAR}\n" && LocalRequiresDownloadArray+=(0) || continue
 
   MatchedDate="$(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')"
   MatchedYear="$(echo "$MatchedDate" | grep -oP '\d{4}(?=-\d{2})')"
