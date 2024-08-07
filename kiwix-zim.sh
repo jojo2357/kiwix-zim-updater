@@ -499,7 +499,6 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
   FileSizeAcceptable=0
   [ $FileTooSmall -eq 0 ] && [ $FileTooLarge -eq 0 ] && FileSizeAcceptable=1
 
-
   if [ $VERIFY_LIBRARY -eq 1 ] && [ $FileSizeAcceptable -eq 0 ]; then
     if [ $FileTooSmall -eq 1 ]; then
       LocalRequiresDownloadArray+=(0)
@@ -545,10 +544,10 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
         LocalRequiresDownloadArray+=(0)
         [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
         [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
-      elif [[ $MatchedYear -lt $LocalYear ]]; then
+      elif [ "$MatchedYear" -lt "$LocalYear" ]; then
         LocalRequiresDownloadArray+=(0)
         echo "    ✗ No new update"
-      elif [[ $MatchedYear -eq $LocalYear ]] && [[ $MatchedMonth -le $LocalMonth ]]; then
+      elif [ "$MatchedYear" -eq "$LocalYear" ] && [ "$MatchedMonth" -le "$LocalMonth" ]; then
         LocalRequiresDownloadArray+=(0)
         echo "    ✗ No new update"
       else
