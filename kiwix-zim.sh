@@ -88,13 +88,14 @@ master_scrape() {
   if [[ FORCE_FETCH_INDEX -eq 1 ]] || [[ $indexIsValid -eq 0 ]]; then
     # both write the file timestamp to the index file and save all of the links to RawLibrary
     # work around wget2 progress bar bug by using a temporary file
-    tmpIndex=$(mktemp)
+    tmpIndex=".kiwix-index.tmp"
+    check_command "mktemp" && tmpIndex=$(mktemp)
 
     [[ $DEBUG -eq 0 ]] && $WGET_CMD -q $WGET_SHOW_PROGRESS -c -O $tmpIndex "https://library.kiwix.org/catalog/v2/entries?count=-1" 2>&1 |& tee -a download.log
     grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" $tmpIndex | head -1 > kiwix-index
 
     RawLibrary=$(grep -i 'application/x-zim' $tmpIndex | grep -ioP "^\s+\K.*$")
-    echo "$RawLibrary" >> kiwix-index && rm -vf $tmpIndex
+    echo "$RawLibrary" >> kiwix-index && rm -f $tmpIndex
   else
     RawLibrary=$(grep -i '<link rel' < kiwix-index)
   fi
@@ -550,7 +551,7 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
   fi
 
   FileName=${LocalZIMNameArray[$i]}
-  echo -e "${BLUE_BOLD}  - $FileName:${CLEAR}"
+  echo -e "${BLUE_BOLD}  - $FileName (${BLUE_REGULAR}$(numfmt --to=iec $(stat -c %s "${ZIMPath}$FileName"))${BLUE_BOLD}):${CLEAR}"
   [[ -f "$ZIMPath.~lock.$FileName" ]] && echo -e "${YELLOW_REGULAR}    Incomplete download detected\n${GREEN_BOLD}    ✓ Online Version Found${CLEAR}\n" && LocalRequiresDownloadArray+=(1) && AnyDownloads=1 && continue
 
 
