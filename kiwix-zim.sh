@@ -138,7 +138,7 @@ run_downloader() {
   if [[ -n "$ARIA2C_CMD" ]]; then
     [[ $DEBUG -eq 0 ]] && $ARIA2C_CMD --summary-interval=$ARIA2C_SUMMARY_INTERVAL -x $ARIA2C_MAX_CONN -c -d "${FilePath%/*}" -o "${FilePath##*/}" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM 
   else
-    [[ $DEBUG -eq 0 ]] && $WGET_CMD -q $WGET_SHOW_PROGRESS -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+    [[ $DEBUG -eq 0 ]] && $WGET_CMD -q $WGET_SHOW_PROGRESS -c -P "${FilePath%/*}" -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
   fi
 }
 
@@ -684,7 +684,7 @@ if [ $AnyDownloads -eq 1 ]; then
 
     if [ $VERIFY_LIBRARY -eq 0 ]; then
       if [[ $DOWNLOAD_METHOD -eq 2 ]]; then
-        if [[ -f $NewZIM ]]; then
+        if [[ -f $NewZIMPath ]]; then
           [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : ZIM already exists on disk. Skipping download.${CLEAR}"
           [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.${CLEAR}"
           echo
@@ -697,7 +697,7 @@ if [ $AnyDownloads -eq 1 ]; then
           [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : *** Simulated ***  Torrent doesn't exist on disk. Downloading...${CLEAR}"
           RequiresDownload=1
         fi
-      elif [[ -f $NewZIM ]] && ! [[ -f $LockFilePath ]]; then # New ZIM already found, and no interruptions, we don't need to download it.
+      elif [[ -f $NewZIMPath ]] && ! [[ -f $LockFilePath ]]; then # New ZIM already found, and no interruptions, we don't need to download it.
         [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : ZIM already exists on disk. Skipping download.${CLEAR}"
         [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ Status : *** Simulated ***  ZIM already exists on disk. Skipping download.${CLEAR}"
         echo
