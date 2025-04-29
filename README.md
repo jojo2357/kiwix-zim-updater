@@ -64,6 +64,8 @@ Creates `downloads.log` for the following reasons:
 
 ## Requirements
 
+**Bash version 4+** and **GNU grep** are both required for proper operation. If using MacOS, [Homebrew](https://github.com/Homebrew) can be used to install both. __**Your execution shell `PATH` environment variable must be set accordingly to make use of the updated versions**__.
+
 This script does not need root, however it does need the same rights as your ZIM directory or it won't be able to download and/or purge ZIMs.
 
 Not checked or installed via script:

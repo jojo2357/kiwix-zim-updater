@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 VER="3.3"
 
@@ -411,6 +411,18 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Validate bash version
+if ! /usr/bin/env bash --version | grep -i 'version \(4\|5\)' &>/dev/null; then
+  echo "Fatal error, bash version 4+ is required!" >&2
+  exit 1
+fi
+
+# Validate grep version
+if ! grep --version | grep -i '(GNU grep)' &>/dev/null; then
+  echo "Fatal error, GNU grep is required!" >&2
+  exit 1
+fi
 
 set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters that we skipped earlier
 
