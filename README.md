@@ -112,3 +112,16 @@ NOTE: if you are not tracking the `main` branch, the update check will be skippe
                                  Disable this using -S
       -S, --no-sha               Disables saving the zim checksum for future reference. Does not delete present checksums.
 ```
+
+## Running in Docker
+The updater can be run alongside the Kiwix server inside docker for regular updating. A sample [docker-compose.yml](./docker/docker-compose.yml) file is provided.
+
+The following environment options are available:
+
+|Variable|Default|Description|
+|--------|-------|-----------|
+|`TZ`|`US/Eastern`|Timezone|
+|`CRON_SCHEDULE`|`0 2 1 * *`|When to run in cron format (2AM on the first of the month)|
+|`SCRIPT_FLAGS`|`-d -w -c`|Flags for the script (no dry run, web download, calculate checksums)|
+|`UPDATE_ON_START`|`false`|Update the script on start of the container|
+|`RUN_ON_START`|`false`|Run the script on start of the container|
