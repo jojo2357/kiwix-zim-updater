@@ -111,4 +111,9 @@ NOTE: if you are not tracking the `main` branch, the update check will be skippe
                                  Expected behavior is to create sha256 files during a normal run so this option can be used at a later date without internet.
                                  Disable this using -S
       -S, --no-sha               Disables saving the zim checksum for future reference. Does not delete present checksums.
+
+  Downloader Options:
+      -D, --download             Get a select-list of all latest-available ZIMs to download
+      -L, --language             Filter the list by a specific language
+      -C, --category             Filter the list by a specific category
 ```
