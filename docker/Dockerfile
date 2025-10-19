@@ -9,7 +9,8 @@ RUN apk add \
     curl \
     wget \
     grep \
-    bash
+    bash \
+    dialog
 
 COPY kiwix-zim-updater.sh /
 COPY docker/startup.sh /
