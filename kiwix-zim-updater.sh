@@ -21,6 +21,10 @@ Basenames=()
 RemotePaths=()
 # Contains the folder this file is in relative to /zims/
 RemoteCategory=()
+# Contains titles, summaries, sizes of ZIM offerings
+RemoteDisplays=()
+# Contains the full hrefs
+RemoteHrefs=()
 
 # Set Script Strings
 SCRIPT="$(readlink -f "$0")"
@@ -59,53 +63,106 @@ master_scrape() {
   unset Basenames
   unset RemotePaths
   unset RemoteCategory
+  unset RemoteDisplays
+  unset RemoteHrefs
 
   indexIsValid=1
 
   if [[ ! -f kiwix-index ]]; then
     indexIsValid=0
   else
-    indexDate="$(head -1 "kiwix-index")"
-    if [[ -z "${indexDate}" ]] || [[ "$(date -u -d "$indexDate" +%s)" -lt "$(date -u -d "1 day ago" +%s)" ]]; then
+    header="$(head -1 "kiwix-index")"
+    if [ "${header}" != '<?xml version="1.0" encoding="UTF-8"?>' ]; then
       indexIsValid=0
+    else
+      indexDate="$(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" kiwix-index |head -n1)"
+      if [[ -z "${indexDate}" ]] || [[ "$(date -u -d "$indexDate" +%s)" -lt "$(date -u -d "1 day ago" +%s)" ]]; then
+        indexIsValid=0
+      fi
     fi
   fi
 
   if [[ FORCE_FETCH_INDEX -eq 1 ]] || [[ $indexIsValid -eq 0 ]]; then
     # both write the file timestamp to the index file and save all of the links to RawLibrary
-    RawLibrary="$(wget --show-progress -q -O - "https://library.kiwix.org/catalog/v2/entries?count=-1" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
-
-    echo "$RawLibrary" >> kiwix-index
-  else
-    RawLibrary=$(grep -i '<link rel' < kiwix-index)
+    RawAll="$(wget --show-progress -q -O - "https://library.kiwix.org/catalog/v2/entries?count=-1" | tee --output-error=warn-nopipe)"
+    echo "$RawAll" > kiwix-index
   fi
 
-  IFS=$'\n' read -r -d '' -a FileSizes < <(echo "$RawLibrary" | grep -ioP '(?<=length=")\d+(?=")')
-  unset IFS
+  DELIM=$'\x1F'
+  while IFS="$DELIM" read -r display href file basename path category; do
+    RemoteDisplays+=("$display")
+    RemoteHrefs+=("$href")
+    RemoteFiles+=("$file")
+    Basenames+=("$basename")
+    RemotePaths+=("$path")
+    RemoteCategory+=("$category")
+  done < <(
+      awk -v DELIM="$DELIM" '
+          /<entry>/ { entry="" }
+          { entry = entry $0 "\n" }
+          /<\/entry>/ {
+              if (entry ~ /https:\/\/download\.kiwix\.org/) {
+                  title = summary = href = file = basename = path = category = ""
 
-  hrefs=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")" | grep -ioP "$BaseURL\K.*")
+                  if (match(entry, /<title>[^<]+<\/title>/)) {
+                      title = substr(entry, RSTART+7, RLENGTH-15)
+                  }
+                  if (match(entry, /<summary>[^<]+<\/summary>/)) {
+                      summary = substr(entry, RSTART+9, RLENGTH-19)
+                  }
+                  if (match(entry, /<language>[^<]+<\/language>/)) {
+                      language = substr(entry, RSTART+10, RLENGTH-21)
+                  }
+                  if (match(entry, /https:\/\/download\.kiwix\.org[^"]+/)) {
+                      href = substr(entry, RSTART, RLENGTH)
+                      sub(/\.meta4$/, "", href)
 
-  IFS=$'\n' read -r -d '' -a RemoteFiles < <(echo "$hrefs" | grep -ioP "[^/]/\K[\w:\/\-.]+")
-  unset IFS
-  IFS=$'\n' read -r -d '' -a Basenames < <(echo "$hrefs" | grep -ioP "[^/]/\K[\w:\/\-.]+(?=\d{4}-\d{2}\.zim)")
-  unset IFS
-  IFS=$'\n' read -r -d '' -a RemotePaths < <(echo "$hrefs" | grep -ioP "^[\w:\/\-.]+")
-  unset IFS # distinct from above for processing speed reasons
-  IFS=$'\n' read -r -d '' -a RemoteCategory < <(echo "$hrefs" | grep -ioP "^[^/]+")
-  unset IFS
+                      # Extract file (last component of URL)
+                      n = split(href, parts, "/")
+                      file = parts[n]
 
-  if [[ ${#RemoteFiles[@]} -eq 0 ]]; then
-    echo -e "${RED_REGULAR}    ✗  Could not find any remote files, exiting${CLEAR}"
-    echo "✗  Could not find any remote files, exiting" >> download.log
-    exit 0
-  else
-    echo -e "${GREEN_BOLD}    ✓ Found ${#RemoteFiles[@]} files online"
-    echo "✓ Found ${#RemoteFiles[@]} files online" >> download.log
+                      # Extract basename (file without version and extension)
+                      # Remove trailing _YYYY-MM or similar pattern and extension
+                      basename = file
+                      sub(/_[0-9][0-9][0-9][0-9]-[0-9][0-9]\.zim$/, "_", basename)
+
+                      # Extract path relative to download.kiwix.org
+                      path = substr(href, length("https://download.kiwix.org/zim/") + 1)
+
+                      # Extract category (first part of path)
+                      split(path, pathparts, "/")
+                      category = pathparts[1]
+
+                      # Extract size
+                      if (match(entry, /length=".*"/)) {
+                        size = substr(entry, RSTART+8, RLENGTH-9)
+                        size = int(size / 1024 / 1024)
+                        if (size < 1) {
+                          size = 1
+                        }
+                        size_str = sprintf("%08d", size)
+                      }
+                  }
+                  sort = category title size_str language
+                  display = sort " ||| [" category "][" language "] " title " - " summary " (" size "Mb) --- " basename
+
+                  print display DELIM href DELIM file DELIM basename DELIM path DELIM category
+              }
+          }
+      ' <<< $(cat kiwix-index |sed "s/\&amp\;/\&/g;s/\&apos\;/'/g;s/…/\.\.\./g") 2>/dev/null
+  )
+  if [ -z "${LIST_DOWNLOAD}" ]; then
+    date
+
+    if [[ ${#RemoteFiles[@]} -eq 0 ]]; then
+      echo -e "${RED_REGULAR}    ✗  Could not find any remote files, exiting${CLEAR}"
+      echo "✗  Could not find any remote files, exiting" >> download.log
+      exit 0
+    else
+      echo -e "${GREEN_BOLD}    ✓ Found ${#RemoteFiles[@]} files online"
+      echo "✓ Found ${#RemoteFiles[@]} files online" >> download.log
+    fi
   fi
-
-  # Housekeeping...
-  unset RawLibrary
-  unset hrefs
 }
 
 # self_update - Script Self-Update Function
@@ -186,20 +243,73 @@ usage_example() {
   echo '    -l <location>, --location  Country Code to prefer mirrors from'
   echo '    -d, --disable-dry-run      Dry-Run Override.'
   echo '                               *** Caution ***'
-
+  echo ''
+  echo 'Downloader Options:'
+  echo '    -D, --download             Get a select-list of all latest-available ZIMs to download'
+  echo '    -L, --language             Filter the list by a specific language'
+  echo '    -C, --category             Filter the list by a specific category'
   echo
   exit 0
 }
 
-# flags - Flag and ZIM Processing Functions
-flags() {
-  echo -e "${YELLOW_BOLD}2. Preprocessing...${CLEAR}"
-  echo "2. Preprocessing..." >> download.log
-  echo
-  echo -e "${BLUE_BOLD}  -Validating ZIM directory...${CLEAR}"
-  echo "Validating ZIM directory..." >> download.log
+# list_mode - List out ZIM files
+list_mode() {
+  if [ -n "${LIST_DOWNLOAD}" ]; then
+    zim_path_valid "$@"
+    master_scrape
 
-  # Let's identify which argument is the ZIM directory path and if it's an actual directory.
+    IFS=$'\n' RemoteDisplays=($(sort <<<"${RemoteDisplays[*]}"))
+    unset IFS
+
+    options=()
+    FilteredRemoteDisplays=()
+    count=0
+    shopt -s nullglob
+    for i in "${!RemoteDisplays[@]}"; do
+        val="off"
+        for file in "${ZIMPath}"${RemoteDisplays[i]##* --- }*.zim; do
+          if [[ -f "$file" ]]; then
+            val="on"
+            break
+          fi
+        done
+        if ( [ -z "${LIST_LANGUAGE}" ] || [[ "${RemoteDisplays[i]}" = *"][${LIST_LANGUAGE}] "* ]] || [[ "${RemoteDisplays[i]}" = *"]["*"${LIST_LANGUAGE}"*"] "* ]] ) \
+          && ( [ -z "${LIST_CATEGORY}" ] || [[ "${RemoteDisplays[i]}" = *" [${LIST_CATEGORY}]["* ]] ); then
+          FilteredRemoteDisplays+=("${RemoteDisplays[i]}")
+          display="${RemoteDisplays[i]%% --- *}"
+          display="${display##* ||| }"
+          options+=("$count" "${display}" "${val}")
+          count=$(( count + 1 ))
+        fi
+    done
+    choice=$(dialog --stdout --checklist "Select downloads:" 0 0 0 "${options[@]}")
+    clear
+    echo "Marking the following new ZIMs for download:"
+    echo "--------------------------------------------"
+    for i in $choice; do
+        index=${i//\"/}
+        found="false"
+        for file in "${ZIMPath}"${RemoteDisplays[i]##* --- }*.zim; do
+          if [[ -f "$file" ]]; then
+            found="true"
+            break
+          fi
+        done
+        if [ "${found}" = "false" ]; then
+          display="${FilteredRemoteDisplays[i]%% --- *}"
+          display="${display##* ||| }"
+          echo "${display}"
+          touch "${ZIMPath}${FilteredRemoteDisplays[$index]##* --- }0000-00.zim"
+        fi
+    done
+    echo
+    echo "Run kiwix-zim-updater in update mode to download any new ZIMs"
+    exit 0
+  fi
+}
+
+# zim_path_valid - Checks for a valid ZIM path
+zim_path_valid() {
   if [[ -d ${1} ]]; then
     if [[ -w ${1} ]]; then
       ZIMPath=$1
@@ -224,6 +334,18 @@ flags() {
 
   # Check for and add if missing, trailing slash.
   [[ "${ZIMPath}" != */ ]] && ZIMPath="${ZIMPath}/"
+}
+
+# flags - Flag and ZIM Processing Functions
+flags() {
+  echo -e "${YELLOW_BOLD}2. Preprocessing...${CLEAR}"
+  echo "2. Preprocessing..." >> download.log
+  echo
+  echo -e "${BLUE_BOLD}  -Validating ZIM directory...${CLEAR}"
+  echo "Validating ZIM directory..." >> download.log
+
+  # Let's identify which argument is the ZIM directory path and if it's an actual directory.
+  zim_path_valid "$@"
 
   # Now we need to check for ZIM files.
   shopt -s nullglob # This is in case there are no matching files
@@ -375,6 +497,26 @@ while [[ $# -gt 0 ]]; do
       fi
       shift # discard value
       ;;
+    -D | --download)
+      LIST_DOWNLOAD=1
+      shift
+      ;;
+    -L | --language)
+        shift # discard -L argument
+        if [[ "$1" =~ ^[a-z]{3}$ ]]; then
+          LIST_LANGUAGE=$1
+        else
+          LIST_LANGUAGE=""
+          echo "Invlaid language, failing" >> download.log
+          exit 1
+        fi
+        shift
+      ;;
+    -C | --category)
+        shift # discard -C argument
+        LIST_CATEGORY=$1
+        shift
+      ;;
     -c | --calculate-checksum)
       CALCULATE_CHECKSUM=1
       shift
@@ -414,11 +556,15 @@ done
 
 set -- "${POSITIONAL_ARGS[@]}" # restore positional parameters that we skipped earlier
 
+# Are we in list mode?
+list_mode "$@"
+
 clear # Clear screen
 
 if [[ $CALCULATE_CHECKSUM -ne 0 ]] && [[ $DOWNLOAD_METHOD -ne 1 ]]; then
   echo -e "${RED_BOLD}Calculating Checksum not available with torrenting. Aborting.${CLEAR}"
 fi
+
 
 # Display Header
 echo "=========================================="
