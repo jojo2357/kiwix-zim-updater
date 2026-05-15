@@ -83,7 +83,7 @@ master_scrape() {
   IFS=$'\n' read -r -d '' -a FileSizes < <(echo "$RawLibrary" | grep -ioP '(?<=length=")\d+(?=")')
   unset IFS
 
-  hrefs=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")" | grep -ioP "$BaseURL\K.*")
+  hrefs=$(echo "$RawLibrary" | grep -ioP '(?<=href=")(https?://[^"]+)?/zim/[\w:\/\-.]+(?=\.meta4")' | grep -ioP '/zim/\K.*')
 
   IFS=$'\n' read -r -d '' -a RemoteFiles < <(echo "$hrefs" | grep -ioP "[^/]/\K[\w:\/\-.]+")
   unset IFS
