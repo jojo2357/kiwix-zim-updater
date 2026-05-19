@@ -40,7 +40,8 @@ CHECKSUM_FILES=1
 VERIFY_LIBRARY=0
 FORCE_FETCH_INDEX=0
 DOWNLOAD_METHOD=1 # 1: web 2: torrent
-BaseURL="https://download.kiwix.org/zim/"
+# sort of a default, will be overwritten when the library is parsed
+BaseURL="https://lbo.download.kiwix.org/zim/"
 ZIMPath=""
 
 RED_REGULAR="\033[0;31m"
@@ -73,7 +74,7 @@ master_scrape() {
 
   if [[ FORCE_FETCH_INDEX -eq 1 ]] || [[ $indexIsValid -eq 0 ]]; then
     # both write the file timestamp to the index file and save all of the links to RawLibrary
-    RawLibrary="$(wget --show-progress -q -O - "https://library.kiwix.org/catalog/v2/entries?count=-1" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
+    RawLibrary="$(wget --show-progress -q -O - "https://opds.library.kiwix.org/catalog/v2/entries?count=-1" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
 
     echo "$RawLibrary" >> kiwix-index
   else
@@ -82,6 +83,23 @@ master_scrape() {
 
   IFS=$'\n' read -r -d '' -a FileSizes < <(echo "$RawLibrary" | grep -ioP '(?<=length=")\d+(?=")')
   unset IFS
+
+  RawLinks=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")")
+
+  BaseURL=$(echo "$RawLinks" | grep -ioP 'https?://[^/]+' | uniq)
+
+  FoundURLs=$(echo "$BaseURL" | wc -l)
+
+  if [[ $FoundURLs -eq 0 ]]; then
+    echo -e "${RED_REGULAR}  ✗ No ZIM URLs found. Exiting...${CLEAR}"
+    exit 0
+  elif [[ $FoundURLs -ne 1 ]]; then
+    echo -e "${RED_REGULAR}  ✗ Too many zim base urls found. Please open an issue on github. Exiting...${CLEAR}"
+    exit 0
+  else
+    BaseURL="$BaseURL/zim/"
+    echo -e "${GREEN_REGULAR}    ✓ Using $BaseURL as base download directory for metadata"
+  fi
 
   hrefs=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")" | grep -ioP "$BaseURL\K.*")
 
@@ -707,6 +725,16 @@ if [ $AnyDownloads -eq 1 ]; then
     [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >>download.log
     # Here is where we actually download the files and log to the download.log file.
     if [[ $RequiresDownload -eq 1 ]]; then
+      [[ $IsMirror -eq 0 ]] && echo -e "${BLUE_REGULAR}    Download (direct) : $DownloadURL${CLEAR}"
+      [[ $IsMirror -eq 1 ]] && echo -e "${BLUE_REGULAR}    Download (mirror) : $DownloadURL${CLEAR}"
+
+      echo >>download.log
+      echo "=======================================================================" >>download.log
+      echo "File : $NewZIM" >>download.log
+      [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >>download.log
+      [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >>download.log
+      echo >>download.log
+
       if [[ $DOWNLOAD_METHOD -eq 2 ]]; then
         FilePath="$FilePath.torrent"
         if [[ -f "$LockFilePath" ]]; then
@@ -721,16 +749,6 @@ if [ $AnyDownloads -eq 1 ]; then
 
         continue
       else
-        [[ $IsMirror -eq 0 ]] && echo -e "${BLUE_REGULAR}    Download (direct) : $DownloadURL${CLEAR}"
-        [[ $IsMirror -eq 1 ]] && echo -e "${BLUE_REGULAR}    Download (mirror) : $DownloadURL${CLEAR}"
-        echo >>download.log
-        echo "=======================================================================" >>download.log
-        echo "File : $NewZIM" >>download.log
-        [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >>download.log
-        [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >>download.log
-        echo >>download.log
-
-
         # Before we actually download, let's just check to see that it isn't already in the folder.
         if [[ -f "$LockFilePath" ]]; then
           [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
