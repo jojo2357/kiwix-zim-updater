@@ -5,7 +5,7 @@
 # Copyright (C) 2023  jojo2357
 # SPDX-License-Identifier: GPL-2.0-only
 
-VER="3.3"
+VER="3.4"
 
 # This array will contain all of the local zims, with the file extension
 LocalZIMArray=()
