@@ -739,12 +739,12 @@ if [ $AnyDownloads -eq 1 ]; then
       if [[ $DOWNLOAD_METHOD -eq 2 ]]; then
         FilePath="$FilePath.torrent"
         if [[ -f "$LockFilePath" ]]; then
-          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 | tee -a download.log # Download new ZIM
           [[ $DEBUG -eq 1 ]] && echo "Continue Download : $FilePath" >>download.log
         elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
           [[ $DEBUG -eq 1 ]] && echo "Download : New Torrent already exists on disk. Skipping download." >>download.log
         else # New ZIM not found, so we'll go ahead and download it.
-          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 | tee -a download.log # Download new ZIM
           [[ $DEBUG -eq 1 ]] && echo "Download : $FilePath" >>download.log
         fi
 
@@ -752,13 +752,13 @@ if [ $AnyDownloads -eq 1 ]; then
       else
         # Before we actually download, let's just check to see that it isn't already in the folder.
         if [[ -f "$LockFilePath" ]]; then
-          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 | tee -a download.log # Download new ZIM
           [[ $DEBUG -eq 1 ]] && echo "Continue Download : $FilePath" >>download.log
         elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
           [[ $DEBUG -eq 1 ]] && echo "Download : New ZIM already exists on disk. Skipping download." >>download.log
         else # New ZIM not found, so we'll go ahead and download it.
           [[ $DEBUG -eq 0 ]] && touch "$LockFilePath"
-          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 | tee -a download.log # Download new ZIM
           [[ $DEBUG -eq 1 ]] && echo "Download : $FilePath" >>download.log
         fi
       fi
