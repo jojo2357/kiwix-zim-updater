@@ -53,6 +53,7 @@ Creates `downloads.log` for the following reasons:
 
 ## Limitations
 
+- This script relies heavily on `grep`'s `-P` flag for lookarounds and the matcher reset, `\K`. This may cause compatibility problems on macOS
 - This script is only for ZIM(s) hosted by `download.kiwix.org` due to the file naming standard they use. If you have self-made ZIM(s) or ZIM(s) downloaded from somewhere else, they most likely do not use the same naming standards and will not be processed by this script.
 - If you have ZIM(s) from `download.kiwix.org`, but you have changed their file names, this script will treat them like the previous limitation explains.
 - This script does not attempt to update any `library.xml` that may or may not exist/be needed for your install/setup of Kiwix. If needed, you'll need to handle this part on your own.
