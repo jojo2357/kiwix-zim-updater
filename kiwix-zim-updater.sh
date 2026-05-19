@@ -42,6 +42,7 @@ FORCE_FETCH_INDEX=0
 DOWNLOAD_METHOD=1 # 1: web 2: torrent
 # sort of a default, will be overwritten when the library is parsed
 BaseURL="https://lbo.download.kiwix.org/zim/"
+CatalogURL="https://opds.library.kiwix.org/catalog/v2/entries?count=-1"
 ZIMPath=""
 
 RED_REGULAR="\033[0;31m"
@@ -74,7 +75,7 @@ master_scrape() {
 
   if [[ FORCE_FETCH_INDEX -eq 1 ]] || [[ $indexIsValid -eq 0 ]]; then
     # both write the file timestamp to the index file and save all of the links to RawLibrary
-    RawLibrary="$(wget --show-progress -q -O - "https://opds.library.kiwix.org/catalog/v2/entries?count=-1" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
+    RawLibrary="$(wget --show-progress -q -O - "$CatalogURL" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
 
     echo "$RawLibrary" >> kiwix-index
   else
