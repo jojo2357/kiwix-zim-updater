@@ -8,7 +8,7 @@ LocalZIMArray=()
 LocalZIMNameArray=()
 # This array will map the local zim to the index in the remote arrays that contains the same base file name
 LocalZIMRemoteIndexArray=()
-# This array is a boolean array which remembers if a given local zim shoud be processed in the download loop
+# This array is a boolean array which remembers if a given local zim should be processed in the download loop
 LocalRequiresDownloadArray=()
 # After updating, this array will be used to store hanging locks and to deal with them
 HangingFileLocks=();
@@ -134,7 +134,7 @@ self_update() {
   echo
   # Check if script path is a git clone.
   #   If true, then check for update.
-  #   If false, skip self-update check/funciton.
+  #   If false, skip self-update check/function.
   if [ $SKIP_UPDATE -eq 1 ]; then
     echo -e "${YELLOW_REGULAR}   Check Skipped${CLEAR}"
     echo "Check Skipped" >> download.log
@@ -390,7 +390,7 @@ while [[ $# -gt 0 ]]; do
         COUNTRY_CODE=$1 # convert passed arg to bytes
       else
         COUNTRY_CODE=""
-        echo "Invlaid country code, falling back to default kiwix behavior" >> download.log
+        echo "Invalid country code, falling back to default kiwix behavior" >> download.log
       fi
       shift # discard value
       ;;
@@ -398,7 +398,7 @@ while [[ $# -gt 0 ]]; do
       CALCULATE_CHECKSUM=1
       shift
       ;;
-    -f | --verfiy-library)
+    -f | --verfiy-library | --verifiy-library)
       VERIFY_LIBRARY=1
       CALCULATE_CHECKSUM=1
       shift
@@ -797,7 +797,7 @@ if [ $AnyDownloads -eq 1 ]; then
     echo >> download.log
     [[ $DownloadFailed -eq 1 ]] && echo " !!! DOWNLOAD FAILED !!!" >>download.log
 
-    # in all of these cases, we will not re-pruge and will leave the lockfile so we know to resume later
+    # in all of these cases, we will not re-purge and will leave the lockfile so we know to resume later
     if [[ $DownloadFailed -eq 1 ]] || [[ $SKIP_PURGE -eq 1 ]] || [[ $VERIFY_LIBRARY -eq 1 ]]; then
       [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >>download.log
       [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >>download.log
@@ -818,12 +818,12 @@ if [ $AnyDownloads -eq 1 ]; then
     if [[ -f "$NewZIMPath" ]]; then # New ZIM found
       if [[ $DEBUG -eq 0 ]]; then
         if [[ "$OldZIMPath" == "$NewZIMPath" ]]; then
-          echo -e "${GREEN_BOLD}    ✓ Status : New ZIM downloaded succesfully.${CLEAR}"
-          echo "✓ Status : New ZIM downloaded succesfully." >>download.log
+          echo -e "${GREEN_BOLD}    ✓ Status : New ZIM downloaded successfully.${CLEAR}"
+          echo "✓ Status : New ZIM downloaded successfully." >>download.log
           #                    rm "$OldZIMPath.sha256" 2>/dev/null # Purge old ZIM
         else
-          echo -e "${GREEN_BOLD}    ✓ Status : New ZIM downloaded succesfully. Old ZIM purged.${CLEAR}"
-          echo "✓ Status : New ZIM downloaded succesfully. Old ZIM purged." >>download.log
+          echo -e "${GREEN_BOLD}    ✓ Status : New ZIM downloaded successfully. Old ZIM purged.${CLEAR}"
+          echo "✓ Status : New ZIM downloaded successfully. Old ZIM purged." >>download.log
           [[ -f "$OldZIMPath" ]] && rm "$OldZIMPath" && rm "$OldZIMPath.sha256" 2>/dev/null # Purge old ZIM
         fi
       else
