@@ -79,9 +79,10 @@ master_scrape() {
   fi
 
   if [[ FORCE_FETCH_INDEX -eq 1 ]] || [[ $indexIsValid -eq 0 ]]; then
-    # both write the file timestamp to the index file and save all of the links to RawLibrary
-    RawLibrary="$(wget --show-progress -q -O - "$CatalogURL" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
-
+    # both write the file timestamp to the index file and save all of the links to RawLibrary.
+    # Lets defer touching the index until we have actually fetched it
+    RawLibrary="$(wget --show-progress -q -O - "$CatalogURL")"
+    RawLibrary="$(echo "$RawLibrary" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
     echo "$RawLibrary" >> kiwix-index
   else
     RawLibrary=$(grep -i '<link rel' < kiwix-index)
@@ -769,7 +770,7 @@ if [ $AnyDownloads -eq 1 ]; then
       fi
     fi
 
-    echo "$ExpectedHash $NewZIM" 2>/dev/null 1>"$NewZIMPath.sha256"
+    [[ $DEBUG -eq 0 ]] && echo "$ExpectedHash $NewZIM" 2>/dev/null 1>"$NewZIMPath.sha256"
     if [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
       echo -e "${BLUE_REGULAR}    Calculating checksum for : $NewZIMPath${CLEAR}"
       if [[ $(du -b "$NewZIMPath" 2>/dev/null | grep -ioP "^\d+") -ne "$ExpectedSize" ]]; then
