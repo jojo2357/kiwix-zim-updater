@@ -45,8 +45,8 @@ CHECKSUM_FILES=1
 VERIFY_LIBRARY=0
 FORCE_FETCH_INDEX=0
 DOWNLOAD_METHOD=1 # 1: web 2: torrent
-# sort of a default, will be overwritten when the library is parsed
-BaseURL="https://lbo.download.kiwix.org/zim/"
+# sort of a default, will be overwritten when the library is parsed. Set here to what it probably will be
+BaseURL="https://lb.download.kiwix.org/zim/"
 CatalogURL="https://opds.library.kiwix.org/catalog/v2/entries?count=-1"
 ZIMPath=""
 
@@ -404,7 +404,7 @@ while [[ $# -gt 0 ]]; do
       CALCULATE_CHECKSUM=1
       shift
       ;;
-    -f | --verfiy-library | --verifiy-library)
+    -f | --verfiy-library | --verify-library)
       VERIFY_LIBRARY=1
       CALCULATE_CHECKSUM=1
       shift
