@@ -1,6 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-VER="3.3"
+# Kiwix-Zim-Updater. A script to update your kiwix library
+# Copyright (C) 2022  DocDrydenn
+# Copyright (C) 2023  jojo2357
+# SPDX-License-Identifier: GPL-2.0-only
+
+VER="3.4"
 
 # This array will contain all of the local zims, with the file extension
 LocalZIMArray=()
@@ -8,7 +13,7 @@ LocalZIMArray=()
 LocalZIMNameArray=()
 # This array will map the local zim to the index in the remote arrays that contains the same base file name
 LocalZIMRemoteIndexArray=()
-# This array is a boolean array which remembers if a given local zim shoud be processed in the download loop
+# This array is a boolean array which remembers if a given local zim should be processed in the download loop
 LocalRequiresDownloadArray=()
 # After updating, this array will be used to store hanging locks and to deal with them
 HangingFileLocks=();
@@ -40,7 +45,9 @@ CHECKSUM_FILES=1
 VERIFY_LIBRARY=0
 FORCE_FETCH_INDEX=0
 DOWNLOAD_METHOD=1 # 1: web 2: torrent
-BaseURL="https://download.kiwix.org/zim/"
+# sort of a default, will be overwritten when the library is parsed. Set here to what it probably will be
+BaseURL="https://lb.download.kiwix.org/zim/"
+CatalogURL="https://opds.library.kiwix.org/catalog/v2/entries?count=-1"
 ZIMPath=""
 
 RED_REGULAR="\033[0;31m"
@@ -72,9 +79,10 @@ master_scrape() {
   fi
 
   if [[ FORCE_FETCH_INDEX -eq 1 ]] || [[ $indexIsValid -eq 0 ]]; then
-    # both write the file timestamp to the index file and save all of the links to RawLibrary
-    RawLibrary="$(wget --show-progress -q -O - "https://library.kiwix.org/catalog/v2/entries?count=-1" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
-
+    # both write the file timestamp to the index file and save all of the links to RawLibrary.
+    # Lets defer touching the index until we have actually fetched it
+    RawLibrary="$(wget --show-progress -q -O - "$CatalogURL")"
+    RawLibrary="$(echo "$RawLibrary" | tee --output-error=warn-nopipe >(grep -ioP "(?<=<updated>)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?=Z</updated>)" | head -1 > kiwix-index) | grep -i 'application/x-zim' | grep -ioP "^\s+\K.*$")"
     echo "$RawLibrary" >> kiwix-index
   else
     RawLibrary=$(grep -i '<link rel' < kiwix-index)
@@ -82,6 +90,23 @@ master_scrape() {
 
   IFS=$'\n' read -r -d '' -a FileSizes < <(echo "$RawLibrary" | grep -ioP '(?<=length=")\d+(?=")')
   unset IFS
+
+  RawLinks=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")")
+
+  BaseURL=$(echo "$RawLinks" | grep -ioP 'https?://[^/]+' | uniq)
+
+  FoundURLs=$(echo "$BaseURL" | wc -l)
+
+  if [[ -z "$BaseURL" ]]; then
+    echo -e "${RED_REGULAR}  ✗ No ZIM URLs found. Exiting...${CLEAR}"
+    exit 0
+  elif [[ $FoundURLs -ne 1 ]]; then
+    echo -e "${RED_REGULAR}  ✗ Too many zim base urls found. Please open an issue on github. Exiting...${CLEAR}"
+    exit 0
+  else
+    BaseURL="$BaseURL/zim/"
+    echo -e "${GREEN_REGULAR}    ✓ Using $BaseURL as base download directory for metadata"
+  fi
 
   hrefs=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")" | grep -ioP "$BaseURL\K.*")
 
@@ -115,7 +140,7 @@ self_update() {
   echo
   # Check if script path is a git clone.
   #   If true, then check for update.
-  #   If false, skip self-update check/funciton.
+  #   If false, skip self-update check/function.
   if [ $SKIP_UPDATE -eq 1 ]; then
     echo -e "${YELLOW_REGULAR}   Check Skipped${CLEAR}"
     echo "Check Skipped" >> download.log
@@ -371,7 +396,7 @@ while [[ $# -gt 0 ]]; do
         COUNTRY_CODE=$1 # convert passed arg to bytes
       else
         COUNTRY_CODE=""
-        echo "Invlaid country code, falling back to default kiwix behavior" >> download.log
+        echo "Invalid country code, falling back to default kiwix behavior" >> download.log
       fi
       shift # discard value
       ;;
@@ -379,7 +404,7 @@ while [[ $# -gt 0 ]]; do
       CALCULATE_CHECKSUM=1
       shift
       ;;
-    -f | --verfiy-library)
+    -f | --verfiy-library | --verify-library)
       VERIFY_LIBRARY=1
       CALCULATE_CHECKSUM=1
       shift
@@ -707,45 +732,45 @@ if [ $AnyDownloads -eq 1 ]; then
     [[ $DEBUG -eq 1 ]] && echo "Start : $(date -u) *** Simulation ***" >>download.log
     # Here is where we actually download the files and log to the download.log file.
     if [[ $RequiresDownload -eq 1 ]]; then
+      [[ $IsMirror -eq 0 ]] && echo -e "${BLUE_REGULAR}    Download (direct) : $DownloadURL${CLEAR}"
+      [[ $IsMirror -eq 1 ]] && echo -e "${BLUE_REGULAR}    Download (mirror) : $DownloadURL${CLEAR}"
+
+      echo >>download.log
+      echo "=======================================================================" >>download.log
+      echo "File : $NewZIM" >>download.log
+      [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >>download.log
+      [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >>download.log
+      echo >>download.log
+
       if [[ $DOWNLOAD_METHOD -eq 2 ]]; then
         FilePath="$FilePath.torrent"
         if [[ -f "$LockFilePath" ]]; then
-          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 | tee -a download.log # Download new ZIM
           [[ $DEBUG -eq 1 ]] && echo "Continue Download : $FilePath" >>download.log
         elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
           [[ $DEBUG -eq 1 ]] && echo "Download : New Torrent already exists on disk. Skipping download." >>download.log
         else # New ZIM not found, so we'll go ahead and download it.
-          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 | tee -a download.log # Download new ZIM
           [[ $DEBUG -eq 1 ]] && echo "Download : $FilePath" >>download.log
         fi
 
         continue
       else
-        [[ $IsMirror -eq 0 ]] && echo -e "${BLUE_REGULAR}    Download (direct) : $DownloadURL${CLEAR}"
-        [[ $IsMirror -eq 1 ]] && echo -e "${BLUE_REGULAR}    Download (mirror) : $DownloadURL${CLEAR}"
-        echo >>download.log
-        echo "=======================================================================" >>download.log
-        echo "File : $NewZIM" >>download.log
-        [[ $IsMirror -eq 0 ]] && echo "URL (direct) : $DownloadURL" >>download.log
-        [[ $IsMirror -eq 1 ]] && echo "URL (mirror) : $DownloadURL" >>download.log
-        echo >>download.log
-
-
         # Before we actually download, let's just check to see that it isn't already in the folder.
         if [[ -f "$LockFilePath" ]]; then
-          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 | tee -a download.log # Download new ZIM
           [[ $DEBUG -eq 1 ]] && echo "Continue Download : $FilePath" >>download.log
         elif [[ -f $FilePath ]]; then # New ZIM already found, we don't need to download it.
           [[ $DEBUG -eq 1 ]] && echo "Download : New ZIM already exists on disk. Skipping download." >>download.log
         else # New ZIM not found, so we'll go ahead and download it.
           [[ $DEBUG -eq 0 ]] && touch "$LockFilePath"
-          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 |& tee -a download.log # Download new ZIM
+          [[ $DEBUG -eq 0 ]] && wget -q --show-progress --progress=bar:force -c -O "$FilePath" "$DownloadURL" 2>&1 | tee -a download.log # Download new ZIM
           [[ $DEBUG -eq 1 ]] && echo "Download : $FilePath" >>download.log
         fi
       fi
     fi
 
-    echo "$ExpectedHash $NewZIM" 2>/dev/null 1>"$NewZIMPath.sha256"
+    [[ $DEBUG -eq 0 ]] && echo "$ExpectedHash $NewZIM" 2>/dev/null 1>"$NewZIMPath.sha256"
     if [[ $CALCULATE_CHECKSUM -eq 1 ]]; then
       echo -e "${BLUE_REGULAR}    Calculating checksum for : $NewZIMPath${CLEAR}"
       if [[ $(du -b "$NewZIMPath" 2>/dev/null | grep -ioP "^\d+") -ne "$ExpectedSize" ]]; then
@@ -778,12 +803,12 @@ if [ $AnyDownloads -eq 1 ]; then
     echo >> download.log
     [[ $DownloadFailed -eq 1 ]] && echo " !!! DOWNLOAD FAILED !!!" >>download.log
 
-    # in all of these cases, we will not re-pruge and will leave the lockfile so we know to resume later
+    # in all of these cases, we will not re-purge and will leave the lockfile so we know to resume later
     if [[ $DownloadFailed -eq 1 ]] || [[ $SKIP_PURGE -eq 1 ]] || [[ $VERIFY_LIBRARY -eq 1 ]]; then
       [[ $DEBUG -eq 0 ]] && echo "End : $(date -u)" >>download.log
       [[ $DEBUG -eq 1 ]] && echo "End : $(date -u) *** Simulation ***" >>download.log
-      [[ $SKIP_PURGE -eq 1 ]] && [[ $DownloadFailed -ne 1 ]] && rm "$LockFilePath"
-      [[ $VERIFY_LIBRARY -eq 1 ]] && [[ $RequiresDownload -eq 1 ]] && rm "$LockFilePath"
+      [[ $DEBUG -eq 0 ]] && [[ $SKIP_PURGE -eq 1 ]] && [[ $DownloadFailed -ne 1 ]] && rm "$LockFilePath"
+      [[ $DEBUG -eq 0 ]] && [[ $VERIFY_LIBRARY -eq 1 ]] && [[ $RequiresDownload -eq 1 ]] && rm "$LockFilePath"
       continue
     fi
 
@@ -799,12 +824,12 @@ if [ $AnyDownloads -eq 1 ]; then
     if [[ -f "$NewZIMPath" ]]; then # New ZIM found
       if [[ $DEBUG -eq 0 ]]; then
         if [[ "$OldZIMPath" == "$NewZIMPath" ]]; then
-          echo -e "${GREEN_BOLD}    ✓ Status : New ZIM downloaded succesfully.${CLEAR}"
-          echo "✓ Status : New ZIM downloaded succesfully." >>download.log
+          echo -e "${GREEN_BOLD}    ✓ Status : New ZIM downloaded successfully.${CLEAR}"
+          echo "✓ Status : New ZIM downloaded successfully." >>download.log
           #                    rm "$OldZIMPath.sha256" 2>/dev/null # Purge old ZIM
         else
-          echo -e "${GREEN_BOLD}    ✓ Status : New ZIM downloaded succesfully. Old ZIM purged.${CLEAR}"
-          echo "✓ Status : New ZIM downloaded succesfully. Old ZIM purged." >>download.log
+          echo -e "${GREEN_BOLD}    ✓ Status : New ZIM downloaded successfully. Old ZIM purged.${CLEAR}"
+          echo "✓ Status : New ZIM downloaded successfully. Old ZIM purged." >>download.log
           [[ -f "$OldZIMPath" ]] && rm "$OldZIMPath" && rm "$OldZIMPath.sha256" 2>/dev/null # Purge old ZIM
         fi
       else

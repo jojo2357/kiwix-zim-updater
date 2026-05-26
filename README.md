@@ -4,12 +4,7 @@ A script to check `download.kiwix.org` for updates to your local ZIM library.
 
 Just pass this script your ZIM directory and away it goes. *(see Usage below)*
 
-Tested on PopOS! 22.04, and should work out of the box on most debian systems, but I have not tested that.
-
-# DEPRECATION WARNING
-`kiwix-zim.sh` has been deprecated in favor of the more descriptive `kiwix-zim-updater.sh`. A hard link from `kiwix-zim.sh` to `kiwix-zim-updater.sh` will be maintained on this repo until at least `2025-01-01T00:00:00Z` for compatability with CRON users.
-
-***CALLING `kiwix-zim.sh` WILL RESULT IN AN EXIT CODE OF 2 ON SUCCESSFUL EXECUTION. THIS BEHAVIOR IS EXPECTED. CALL `kiwix-zim-updater.sh` INSTEAD TO GET A 0 EXIT CODE***
+Tested on Debian 13, and should work out of the box on most debian systems, but I have not tested that.
 
 ## What It Does
 
@@ -58,6 +53,7 @@ Creates `downloads.log` for the following reasons:
 
 ## Limitations
 
+- This script relies heavily on `grep`'s `-P` flag for lookarounds and the matcher reset, `\K`. This may cause compatibility problems on macOS
 - This script is only for ZIM(s) hosted by `download.kiwix.org` due to the file naming standard they use. If you have self-made ZIM(s) or ZIM(s) downloaded from somewhere else, they most likely do not use the same naming standards and will not be processed by this script.
 - If you have ZIM(s) from `download.kiwix.org`, but you have changed their file names, this script will treat them like the previous limitation explains.
 - This script does not attempt to update any `library.xml` that may or may not exist/be needed for your install/setup of Kiwix. If needed, you'll need to handle this part on your own.
