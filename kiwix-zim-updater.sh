@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 # Kiwix-Zim-Updater. A script to update your kiwix library
-# Copyright (C) 2022  DocDrydenn
-# Copyright (C) 2023  jojo2357
+# Copyright (C) 2022      DocDrydenn
+# Copyright (C) 2023-2026 jojo2357
 # SPDX-License-Identifier: GPL-2.0-only
 
-VER="3.4"
+VER="3.5"
 
 # This array will contain all of the local zims, with the file extension
 LocalZIMArray=()
@@ -60,6 +60,12 @@ BLUE_REGULAR="\033[0;34m"
 BLUE_BOLD="\033[1;34m"
 CLEAR="\033[0m"
 
+MONTH_REGEX="\d{2}[a-z]?"
+YEAR_REGEX="\d{4}"
+END_ANCHOR_REGEX="\.zim"
+
+COMPLETE_ENDING_REGEX="$YEAR_REGEX-$MONTH_REGEX$END_ANCHOR_REGEX"
+
 # This will ask the api what files it has to offer and store them in arrays
 master_scrape() {
   unset RemoteFiles
@@ -108,15 +114,26 @@ master_scrape() {
     echo -e "${GREEN_REGULAR}    ✓ Using $BaseURL as base download directory for metadata"
   fi
 
+  REMOTE_FILE_REGEX="[^/]/\K[\w:\/\-.]+"
+  BASE_REGEX="[^/]/\K[\w:\/\-.]+(?=$COMPLETE_ENDING_REGEX)"
+  REMOTE_PATH_REGEX="^[\w:\/\-.]+"
+  REMOTE_CATEGORY_REGEX="^[^/]+"
+
   hrefs=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")" | grep -ioP "$BaseURL\K.*")
 
-  IFS=$'\n' read -r -d '' -a RemoteFiles < <(echo "$hrefs" | grep -ioP "[^/]/\K[\w:\/\-.]+")
+  # ensure that all hrefs match all regexes to prevent misalignment
+  hrefs=$(echo "$hrefs" | grep -iP "$REMOTE_FILE_REGEX")
+  hrefs=$(echo "$hrefs" | grep -iP "$BASE_REGEX")
+  hrefs=$(echo "$hrefs" | grep -iP "$REMOTE_PATH_REGEX")
+  hrefs=$(echo "$hrefs" | grep -iP "$REMOTE_CATEGORY_REGEX")
+
+  IFS=$'\n' read -r -d '' -a RemoteFiles < <(echo "$hrefs" | grep -ioP "$REMOTE_FILE_REGEX")
   unset IFS
-  IFS=$'\n' read -r -d '' -a Basenames < <(echo "$hrefs" | grep -ioP "[^/]/\K[\w:\/\-.]+(?=\d{4}-\d{2}\.zim)")
+  IFS=$'\n' read -r -d '' -a Basenames < <(echo "$hrefs" | grep -ioP "$BASE_REGEX")
   unset IFS
-  IFS=$'\n' read -r -d '' -a RemotePaths < <(echo "$hrefs" | grep -ioP "^[\w:\/\-.]+")
+  IFS=$'\n' read -r -d '' -a RemotePaths < <(echo "$hrefs" | grep -ioP "$REMOTE_PATH_REGEX")
   unset IFS # distinct from above for processing speed reasons
-  IFS=$'\n' read -r -d '' -a RemoteCategory < <(echo "$hrefs" | grep -ioP "^[^/]+")
+  IFS=$'\n' read -r -d '' -a RemoteCategory < <(echo "$hrefs" | grep -ioP "$REMOTE_CATEGORY_REGEX")
   unset IFS
 
   if [[ ${#RemoteFiles[@]} -eq 0 ]]; then
@@ -259,14 +276,20 @@ flags() {
 
   for index in "${!LocalZIMArray[@]}" ; do
     duplicated=0
-    myBasename=$(echo "${LocalZIMArray[$index]}" | grep -ioP "^.*(?=_\d{4}-\d{2}\.zim$)")
+    myBasename=$(echo "${LocalZIMArray[$index]}" | grep -ioP "^.*(?=_$COMPLETE_ENDING_REGEX$)")
+
+    # Sorting cannot reliably sort the month string so we need to check it to be sure
+    MyDate="$(echo "${LocalZIMArray[$index]}" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")"
+    MyYear="$(echo "$MyDate" | grep -oP "$YEAR_REGEX(?=-$MONTH_REGEX)")"
+    MyMonth="$(echo "$MyDate" | grep -oP "(?<=$YEAR_REGEX-)$MONTH_REGEX")"
+
     for scanIndex in "${!LocalZIMArray[@]}"; do
       if [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$index]}" ]]; then
         if [[ $index -le $scanIndex ]] || [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$scanIndex]}" ]]; then continue; fi
       else
         if [[ $index -ge $scanIndex ]] || [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$scanIndex]}" ]]; then continue; fi
       fi
-      scanBasename=$(echo "${LocalZIMArray[$scanIndex]}" | grep -ioP "^.*(?=_\d{4}-\d{2}\.zim$)")
+      scanBasename=$(echo "${LocalZIMArray[$scanIndex]}" | grep -ioP "^.*(?=_$COMPLETE_ENDING_REGEX$)")
 
       if [[ "$myBasename" == "$scanBasename" ]]; then
         if [[ -f "${ZIMPath}.~lock.${LocalZIMArray[$index]}" ]]; then
@@ -274,6 +297,21 @@ flags() {
         elif [[ -f "${ZIMPath}${LocalZIMArray[$index]}.torrent" ]]; then
           echo "Disregarding ${LocalZIMArray[$index]} because new torrent exists ${LocalZIMArray[$scanIndex]}" >> download.log
         else
+          ScanDate="$(echo "${LocalZIMArray[$scanIndex]}" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")"
+          ScanYear="$(echo "$ScanDate" | grep -oP "$YEAR_REGEX(?=-$MONTH_REGEX)")"
+          ScanMonth="$(echo "$ScanDate" | grep -oP "(?<=$YEAR_REGEX-)$MONTH_REGEX")"
+
+          # this file is not shadowed if it is newer
+          if [[ $MyYear > $ScanYear ]]; then
+            echo "Disregarding ${LocalZIMArray[$scanIndex]} because it is shadowed by ${LocalZIMArray[$index]}" >> download.log
+            duplicated=2
+            break
+          elif [[ $MyYear == $ScanYear ]] && [[ $MyMonth > $ScanMonth ]]; then
+            echo "Disregarding ${LocalZIMArray[$scanIndex]} because it is shadowed by ${LocalZIMArray[$index]}" >> download.log
+            duplicated=2
+            break
+          fi
+
           echo "Disregarding ${LocalZIMArray[$index]} because it is shadowed by ${LocalZIMArray[$scanIndex]}" >> download.log
         fi
         duplicated=1
@@ -281,6 +319,7 @@ flags() {
       fi
     done
     [[ $duplicated -eq 1 ]] && unset -v 'LocalZIMArray[$index]'
+    [[ $duplicated -eq 2 ]] && unset -v 'LocalZIMArray[$scanIndex]'
   done
   LocalZIMArray=("${LocalZIMArray[@]}")
 
@@ -305,7 +344,7 @@ flags() {
 
   for ((i = 0; i < ${#LocalZIMArray[@]}; i++)); do                                             # Loop through local ZIM(s).
     LocalZIMNameArray[$i]=$(basename "${LocalZIMArray[$i]}")                                   # Extract file name.
-    filename=$(basename "${LocalZIMArray[$i]}" | grep -ioP "[\w:\/\-.]+(?=\d{4}-\d{2}\.zim$)") # Extract file name.
+    filename=$(basename "${LocalZIMArray[$i]}" | grep -ioP "[\w:\/\-.]+(?=$COMPLETE_ENDING_REGEX$)") # Extract file name.
     #        IFS='_' read -ra fields <<< "${LocalZIMNameArray[$i]}"; unset IFS  # Break the filename into fields delimited by the underscore '_'
 
     # Search MasterZIMArray for the current local ZIM to discover the online Root (directory) for the URL
@@ -509,13 +548,13 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
 
   [[ -f "$ZIMPath$MatchingFileName.torrent" ]] && [[ ! -f "$ZIMPath$MatchingFileName" ]] && echo -e "${YELLOW_REGULAR}    Torrent already downloaded\n${GREEN_BOLD}    ✓ Online Version Found${CLEAR}\n" && LocalRequiresDownloadArray+=(0) && continue
 
-  MatchedDate="$(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')"
-  MatchedYear="$(echo "$MatchedDate" | grep -oP '\d{4}(?=-\d{2})')"
-  MatchedMonth="$(echo "$MatchedDate" | grep -oP '(?<=\d{4}-)\d{2}')"
+  MatchedDate="$(echo "$MatchingFileName" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")"
+  MatchedYear="$(echo "$MatchedDate" | grep -oP "$YEAR_REGEX(?=-$MONTH_REGEX)")"
+  MatchedMonth="$(echo "$MatchedDate" | grep -oP "(?<=$YEAR_REGEX-)$MONTH_REGEX")"
 
-  LocalDate="$(echo "$FileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')"
-  LocalYear="$(echo "$LocalDate" | grep -oP '\d{4}(?=-\d{2})')"
-  LocalMonth="$(echo "$LocalDate" | grep -oP '(?<=\d{4}-)\d{2}')"
+  LocalDate="$(echo "$FileName" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")"
+  LocalYear="$(echo "$LocalDate" | grep -oP "$YEAR_REGEX(?=-$MONTH_REGEX)")"
+  LocalMonth="$(echo "$LocalDate" | grep -oP "(?<=$YEAR_REGEX-)$MONTH_REGEX")"
 
   FileTooSmall=0
   [[ $MIN_SIZE -gt 0 ]] && [[ $MatchingSize -lt $MIN_SIZE ]] && FileTooSmall=1
@@ -563,16 +602,16 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
     else
       if [ $FileTooSmall -eq 1 ]; then
         LocalRequiresDownloadArray+=(0)
-        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
-        [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
+        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '$YEAR_REGEX-\d{2}(?=\.zim$)')${CLEAR}"
+        [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)')${CLEAR}"
       elif [ $FileTooLarge -eq 1 ]; then
         LocalRequiresDownloadArray+=(0)
-        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
-        [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '\d{4}-\d{2}(?=\.zim$)')${CLEAR}"
-      elif [ "$MatchedYear" -lt "$LocalYear" ]; then
+        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)')${CLEAR}"
+        [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)')${CLEAR}"
+      elif [[ $MatchedYear < $LocalYear ]]; then
         LocalRequiresDownloadArray+=(0)
         echo "    ✗ No new update"
-      elif [ "$MatchedYear" -eq "$LocalYear" ] && [ "$MatchedMonth" -le "$LocalMonth" ]; then
+      elif [[ $MatchedYear == $LocalYear ]] && ( [[ $MatchedMonth < $LocalMonth ]] || [[ $MatchedMonth == $LocalMonth ]] ); then
         LocalRequiresDownloadArray+=(0)
         echo "    ✗ No new update"
       else
