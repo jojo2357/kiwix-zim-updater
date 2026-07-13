@@ -309,7 +309,8 @@ flags() {
           ScanYear="$(echo "$ScanDate" | grep -oP "$YEAR_REGEX(?=-$MONTH_REGEX)")"
           ScanMonth="$(echo "$ScanDate" | grep -oP "(?<=$YEAR_REGEX-)$MONTH_REGEX")"
 
-          # this file is not shadowed if it is newer
+          # this file is not shadowed if it is newer.
+          # this is caused by `ls -1` and `sort` having weird lexicons that make the prefix sort unreliable that 02a can sort between 01 and 02 instead of after 02
           if [[ $MyYear > $ScanYear ]]; then
             echo "Disregarding ${LocalZIMArray[$scanIndex]} because it is shadowed by ${LocalZIMArray[$index]}" >> download.log
             duplicated=2
