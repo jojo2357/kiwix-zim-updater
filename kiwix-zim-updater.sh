@@ -94,10 +94,26 @@ master_scrape() {
     RawLibrary=$(grep -i '<link rel' < kiwix-index)
   fi
 
-  IFS=$'\n' read -r -d '' -a FileSizes < <(echo "$RawLibrary" | grep -ioP '(?<=length=")\d+(?=")')
+  REMOTE_FILE_REGEX="[^/]/\K[\w:\/\-.]+"
+  BASE_REGEX="[^/]/\K[\w:\/\-.]+(?=$COMPLETE_ENDING_REGEX)"
+  REMOTE_PATH_REGEX="^[\w:\/\-.]+"
+  REMOTE_CATEGORY_REGEX="^[^/]+"
+
+  ValidLibrary="$RawLibrary"
+  # ensure that every line matches every regex
+  ValidLibrary="$(echo "$ValidLibrary" | grep -iP '(?<=length=")\d+(?=")')"
+  ValidLibrary="$(echo "$ValidLibrary" | grep -iP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")")"
+  # we have to add extra here so that we dont have to change the regexes
+  ValidLibrary="$(echo "$ValidLibrary" | grep -iP "href=\"https?://[^/]+$REMOTE_FILE_REGEX")"
+  ValidLibrary="$(echo "$ValidLibrary" | grep -iP "href=\"https?://[^/]+$BASE_REGEX")"
+  # these probably arent gonna be a problem so we will ignore them
+#  ValidLibrary="$(echo "$ValidLibrary" | grep -iP "$REMOTE_PATH_REGEX")"
+#  ValidLibrary="$(echo "$ValidLibrary" | grep -iP "$REMOTE_CATEGORY_REGEX")"
+
+  IFS=$'\n' read -r -d '' -a FileSizes < <(echo "$ValidLibrary" | grep -ioP '(?<=length=")\d+(?=")')
   unset IFS
 
-  RawLinks=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")")
+  RawLinks=$(echo "$ValidLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")")
 
   BaseURL=$(echo "$RawLinks" | grep -ioP 'https?://[^/]+' | uniq)
 
@@ -114,18 +130,9 @@ master_scrape() {
     echo -e "${GREEN_REGULAR}    ✓ Using $BaseURL as base download directory for metadata"
   fi
 
-  REMOTE_FILE_REGEX="[^/]/\K[\w:\/\-.]+"
-  BASE_REGEX="[^/]/\K[\w:\/\-.]+(?=$COMPLETE_ENDING_REGEX)"
-  REMOTE_PATH_REGEX="^[\w:\/\-.]+"
-  REMOTE_CATEGORY_REGEX="^[^/]+"
-
-  hrefs=$(echo "$RawLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")" | grep -ioP "$BaseURL\K.*")
+  hrefs=$(echo "$ValidLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")" | grep -ioP "$BaseURL\K.*")
 
   # ensure that all hrefs match all regexes to prevent misalignment
-  hrefs=$(echo "$hrefs" | grep -iP "$REMOTE_FILE_REGEX")
-  hrefs=$(echo "$hrefs" | grep -iP "$BASE_REGEX")
-  hrefs=$(echo "$hrefs" | grep -iP "$REMOTE_PATH_REGEX")
-  hrefs=$(echo "$hrefs" | grep -iP "$REMOTE_CATEGORY_REGEX")
 
   IFS=$'\n' read -r -d '' -a RemoteFiles < <(echo "$hrefs" | grep -ioP "$REMOTE_FILE_REGEX")
   unset IFS
@@ -146,6 +153,7 @@ master_scrape() {
   fi
 
   # Housekeeping...
+  unset ValidLibrary
   unset RawLibrary
   unset hrefs
 }
@@ -602,12 +610,12 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
     else
       if [ $FileTooSmall -eq 1 ]; then
         LocalRequiresDownloadArray+=(0)
-        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '$YEAR_REGEX-\d{2}(?=\.zim$)')${CLEAR}"
-        [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)')${CLEAR}"
+        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP "$YEAR_REGEX-\d{2}(?=\.zim$)")${CLEAR}"
+        [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")${CLEAR}"
       elif [ $FileTooLarge -eq 1 ]; then
         LocalRequiresDownloadArray+=(0)
-        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)')${CLEAR}"
-        [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP '$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)')${CLEAR}"
+        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")${CLEAR}"
+        [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (maximum: $(numfmt --to=iec-i $MAX_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")${CLEAR}"
       elif [[ $MatchedYear < $LocalYear ]]; then
         LocalRequiresDownloadArray+=(0)
         echo "    ✗ No new update"
