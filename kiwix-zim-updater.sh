@@ -132,8 +132,6 @@ master_scrape() {
 
   hrefs=$(echo "$ValidLibrary" | grep -ioP "(?<=href=\")[\w:\/\-.]+(?=\.meta4\")" | grep -ioP "$BaseURL\K.*")
 
-  # ensure that all hrefs match all regexes to prevent misalignment
-
   IFS=$'\n' read -r -d '' -a RemoteFiles < <(echo "$hrefs" | grep -ioP "$REMOTE_FILE_REGEX")
   unset IFS
   IFS=$'\n' read -r -d '' -a Basenames < <(echo "$hrefs" | grep -ioP "$BASE_REGEX")
@@ -150,6 +148,16 @@ master_scrape() {
   else
     echo -e "${GREEN_BOLD}    ✓ Found ${#RemoteFiles[@]} files online"
     echo "✓ Found ${#RemoteFiles[@]} files online" >> download.log
+  fi
+
+  if [[ ${#RemoteFiles[@]} -ne ${#RemoteFiles[@]} ]] || \
+    [[ ${#RemoteFiles[@]} -ne ${#Basenames[@]} ]] || \
+    [[ ${#RemoteFiles[@]} -ne ${#RemotePaths[@]} ]] || \
+    [[ ${#RemoteFiles[@]} -ne ${#RemoteCategory[@]} ]] || \
+    [[ ${#RemoteFiles[@]} -ne ${#FileSizes[@]} ]] ; then
+    echo -e "${RED_BOLD}CRITICAL ERROR!${CLEAR}"
+    echo -e "${RED}Parsed array lengths did not match. Aborting to prevent data loss${CLEAR}"
+    exit 99
   fi
 
   # Housekeeping...
@@ -611,7 +619,7 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
     else
       if [ $FileTooSmall -eq 1 ]; then
         LocalRequiresDownloadArray+=(0)
-        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP "$YEAR_REGEX-\d{2}(?=\.zim$)")${CLEAR}"
+        [[ $DEBUG -eq 0 ]] && echo -e "${GREEN_REGULAR}    ✓ Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")${CLEAR}"
         [[ $DEBUG -eq 1 ]] && echo -e "${GREEN_REGULAR}    ✓ *** Simulated ***  Update skipped (minimum: $(numfmt --to=iec-i $MIN_SIZE), download size: $(numfmt --to=iec-i "$MatchingSize")). New version: $(echo "$MatchingFileName" | grep -oP "$YEAR_REGEX-$MONTH_REGEX(?=$END_ANCHOR_REGEX$)")${CLEAR}"
       elif [ $FileTooLarge -eq 1 ]; then
         LocalRequiresDownloadArray+=(0)
@@ -620,7 +628,7 @@ for ((i = 0; i < ${#LocalZIMNameArray[@]}; i++)); do
       elif [[ $MatchedYear < $LocalYear ]]; then
         LocalRequiresDownloadArray+=(0)
         echo "    ✗ No new update"
-      elif [[ $MatchedYear == $LocalYear ]] && ( [[ $MatchedMonth < $LocalMonth ]] || [[ $MatchedMonth == $LocalMonth ]] ); then
+      elif [[ "$MatchedYear" == "$LocalYear" ]] && { [[ $MatchedMonth < $LocalMonth ]] || [[ "$MatchedMonth" == "$LocalMonth" ]] ; }; then
         LocalRequiresDownloadArray+=(0)
         echo "    ✗ No new update"
       else
