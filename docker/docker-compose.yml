@@ -1,0 +1,30 @@
+services:
+
+  kiwix:
+    image: ghcr.io/kiwix/kiwix-serve:latest
+    container_name: kiwix
+    volumes:
+      - ./data:/data
+    command: '*.zim'
+    restart: unless-stopped
+    networks:
+      - kiwix
+
+  kiwix-updater:
+    image: jojo2357/kiwix-zim-updater:latest
+    container_name: kiwix-updater
+    volumes:
+      - ./data:/data
+    environment:
+      TZ: US/Eastern             # Timezone
+      CRON_SCHEDULE: '0 2 1 * *' # 2AM on the first of the month
+      SCRIPT_FLAGS: '-d -w -c'   # No dry run, web download, calculate checksums
+      UPDATE_ON_START: true      # Update kwix-zim-updater.sh on startup
+      RUN_ON_START: false        # Run kwix-zim-updater.sh right at startup
+    restart: unless-stopped
+    networks:
+      - kiwix
+
+networks:
+  kiwix:
+    name: kiwix
